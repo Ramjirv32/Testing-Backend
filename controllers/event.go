@@ -134,3 +134,50 @@ func UpdateEvent(c fiber.Ctx) error {
 
 	return utils.SuccessResponse(c, 200, "Event updated successfully", updatedEvent)
 }
+
+// AdminCreateEvent - Admin can create events without organizer checks
+func AdminCreateEvent(c fiber.Ctx) error {
+	userID := c.Locals("uid").(string)
+
+	var event models.Event
+	if err := c.Bind().Body(&event); err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid request body")
+	}
+
+	event.ID = utils.GenerateUUIDv7()
+	event.OrganizerID = userID
+	event.Status = "active"
+	event.CreatedAt = time.Now()
+	event.UpdatedAt = time.Now()
+
+	if err := eventRepo.Create(c.Context(), &event); err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to create event")
+	}
+
+	return utils.SuccessResponse(c, 201, "Event created successfully (admin)", event)
+}
+
+// AdminUpdateEvent - Admin can update any event
+func AdminUpdateEvent(c fiber.Ctx) error {
+	id := c.Params("id")
+	var event models.Event
+	if err := c.Bind().Body(&event); err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid request body")
+	}
+
+	existing, err := eventRepo.FindByID(c.Context(), id)
+	if err != nil || existing == nil {
+		return utils.ErrorResponse(c, 404, "Event not found")
+	}
+
+	event.ID = id
+	event.OrganizerID = existing.OrganizerID
+	event.CreatedAt = existing.CreatedAt
+	event.UpdatedAt = time.Now()
+
+	if err := eventRepo.Update(c.Context(), &event); err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to update event")
+	}
+
+	return utils.SuccessResponse(c, 200, "Event updated successfully (admin)", event)
+}

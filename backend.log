@@ -1,6 +1,11 @@
-2026/02/15 12:51:46 Firestore initialized successfully
-2026/02/15 12:51:46 ✅ Firebase and Firestore initialized successfully
-2026/02/15 12:51:46 🚀 Server starting on port :9000
+nohup: ignoring input
+2026/02/17 21:58:00 🔍 Using Firebase credentials from FIREBASE_CREDENTIALS environment variable
+2026/02/17 21:58:00 ✅ Firebase Auth initialized
+2026/02/17 21:58:00 ✅ Firestore initialized
+2026/02/17 21:58:00 ✅ Firebase Storage initialized
+2026/02/17 21:58:00 🚀 Firebase Services Initialized Successfully
+2026/02/17 21:58:00 ✅ Firebase (Auth, Firestore, Storage) and Email initialized successfully
+2026/02/17 21:58:00 🚀 Server starting on port :9000 (Environment: development)
 
     _______ __
    / ____(_) /_  ___  _____
@@ -10,9 +15,9 @@
 --------------------------------------------------
 INFO Server started on: 	http://127.0.0.1:9000 (bound on host 0.0.0.0 and port 9000)
 INFO Application name: 		Website Backend
-INFO Total handlers: 		29
+INFO Total handlers: 		104
 INFO Prefork: 			Disabled
-INFO PID: 			22487
+INFO PID: 			99094
 INFO Total process count: 	1
 
 signal: terminated

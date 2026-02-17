@@ -58,7 +58,7 @@ func (r *EventRepository) FindPaginatedByOrganizerID(ctx context.Context, organi
 	}
 
 	iter := q.Documents(ctx)
-	var events []*models.Event
+	events := []*models.Event{}
 	var lastDocID string
 
 	for {
@@ -108,7 +108,7 @@ func (r *EventRepository) GetPaginated(ctx context.Context, limit int, lastID st
 	}
 
 	iter := q.Documents(ctx)
-	var events []*models.Event
+	events := []*models.Event{}
 	var lastDocID string
 
 	for {

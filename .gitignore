@@ -1,5 +1,4 @@
-# Firebase credentials (exclude only finalotp)
-finalotp-cfb22-firebase-adminsdk-fbsvc-d7950a7510.json
+
 
 # Binary files
 server
@@ -26,3 +25,4 @@ vendor/
 
 # Go workspace file
 go.work
+Secure key API.txt

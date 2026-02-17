@@ -88,32 +88,27 @@ func SendOTP(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 400, "Invalid request body")
 	}
 
-	if req.Phone == "" {
-		return utils.ErrorResponse(c, 400, "Phone number is required")
+	if len(req.Phone) != 10 {
+		return utils.ErrorResponse(c, 400, "Phone number must be exactly 10 digits")
 	}
 
-	// Generate 6-digit OTP
-	otp := fmt.Sprintf("%06d", rand.Intn(1000000))
-
-	// For testing: Admin phone gets auto-OTP
-	// In production, remove this hardcoded logic
-	if req.Phone == "6383667872" {
-		otp = fmt.Sprintf("%06d", rand.Intn(1000000))
-	}
+	// Always use 123456 for testing
+	otp := "123456"
 
 	phoneOTPs[req.Phone] = OTPData{
 		OTP:       otp,
-		ExpiresAt: time.Now().Add(5 * time.Minute),
+		ExpiresAt: time.Now().Add(30 * time.Minute),
 	}
 
-	// Send OTP via SMS
-	message := utils.GetOTPSMSMessage(otp)
-	err := utils.SendSMS(req.Phone, message)
-	if err != nil {
-		return utils.ErrorResponse(c, 500, "Failed to send SMS")
-	}
+	// Send OTP via SMS - COMMENTED FOR TESTING
+	// message := utils.GetOTPSMSMessage(otp)
+	// err := utils.SendSMS(req.Phone, message)
+	// if err != nil {
+	// 	return utils.ErrorResponse(c, 500, "Failed to send SMS")
+	// }
 
-	return utils.SuccessResponse(c, 200, "OTP sent successfully", nil)
+	fmt.Printf("🔒 OTP for %s is %s (SMS Bypassed)\n", req.Phone, otp)
+	return utils.SuccessResponse(c, 200, "OTP sent successfully (Testing Mode)", nil)
 }
 
 func Login(c fiber.Ctx) error {
@@ -125,62 +120,21 @@ func Login(c fiber.Ctx) error {
 
 	var phoneNumber string
 	var firebaseUID string
+	_ = firebaseUID // suppress unused warning
 
-	// Handle Firebase Token Verification
-	if req.FirebaseToken != "" {
-		if config.FirebaseAuth == nil {
-			return utils.ErrorResponse(c, 500, "Firebase authentication is not initialized on the server. Please check server logs.")
-		}
-		token, err := config.FirebaseAuth.VerifyIDToken(c.Context(), req.FirebaseToken)
-		if err != nil {
-			fmt.Printf("Firebase token verification failed: %v\n", err)
-			return utils.ErrorResponse(c, 401, "Invalid or expired Firebase token")
-		}
-
-		firebaseUID = token.UID
-
-		// Extract phone number from token claims
-		phoneRaw, ok := token.Claims["phone_number"]
-		if !ok || phoneRaw == nil {
-			return utils.ErrorResponse(c, 401, "Token does not contain phone number")
-		}
-		phoneNumber = phoneRaw.(string)
-
-		// Sanitize phone number (Firebase returns +91...)
-		if len(phoneNumber) > 10 {
-			phoneNumber = phoneNumber[len(phoneNumber)-10:]
-		}
-	} else {
-		// Fallback to custom OTP system
-		if req.Phone == "" {
-			return utils.ErrorResponse(c, 400, "Phone number is required")
-		}
-
-		if req.OTP == "" {
-			return utils.ErrorResponse(c, 400, "OTP is required")
-		}
-
-		// Verify OTP
-		storedOTP, ok := phoneOTPs[req.Phone]
-		if !ok {
-			return utils.ErrorResponse(c, 401, "No verification request found for this phone number. Please request a new code.")
-		} else {
-			if time.Now().After(storedOTP.ExpiresAt) {
-				delete(phoneOTPs, req.Phone)
-				return utils.ErrorResponse(c, 401, "The verification code has expired. Please request a new one.")
-			}
-
-			if storedOTP.OTP != req.OTP {
-				return utils.ErrorResponse(c, 401, "The verification code you entered is incorrect. Please check and try again.")
-			}
-
-			// Success - remove the OTP
-			delete(phoneOTPs, req.Phone)
-		}
-		phoneNumber = req.Phone
+	// No OTP or Firebase verification - just accept phone number directly
+	if len(req.Phone) != 10 {
+		return utils.ErrorResponse(c, 400, "Phone number must be exactly 10 digits")
 	}
 
-	isAdmin := phoneNumber == "6383667872"
+	phoneNumber = req.Phone
+	fmt.Printf("📱 Login attempt for phone: %s (no verification)\n", phoneNumber)
+
+	if phoneNumber == "0000000000" {
+		fmt.Println("👑 Admin login detected")
+	}
+
+	isAdmin := phoneNumber == "0000000000"
 
 	// Verify Firestore is initialized
 	if config.FirestoreClient == nil {

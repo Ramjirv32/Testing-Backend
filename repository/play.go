@@ -57,7 +57,7 @@ func (r *PlayRepository) GetPaginated(ctx context.Context, limit int, lastID str
 	}
 
 	iter := q.Documents(ctx)
-	var venues []*models.PlayVenue
+	venues := []*models.PlayVenue{}
 	var lastDocID string
 
 	for {
@@ -142,7 +142,7 @@ func (r *PlayRepository) FindPaginatedByOrganizerID(ctx context.Context, organiz
 	}
 
 	iter := q.Documents(ctx)
-	var venues []*models.PlayVenue
+	venues := []*models.PlayVenue{}
 	var lastDocID string
 
 	for {

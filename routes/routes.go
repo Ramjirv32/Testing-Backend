@@ -48,9 +48,17 @@ func SetupRoutes(app *fiber.App) {
 	admin.Get("/partners", controllers.GetEventPosters)
 	admin.Patch("/partners/:id/approve", controllers.ApproveEventPoster)
 	admin.Put("/partners/:id", controllers.UpdatePartnerProfile)
+	admin.Post("/play", controllers.AdminCreatePlayVenue)
+	admin.Put("/play/:id", controllers.AdminUpdatePlayVenue)
+	admin.Post("/dining", controllers.AdminCreateDiningVenue)
+	admin.Put("/dining/:id", controllers.AdminUpdateDiningVenue)
+	admin.Post("/events", controllers.AdminCreateEvent)
+	admin.Put("/events/:id", controllers.AdminUpdateEvent)
 
 	partners := api.Group("/partners", middleware.Auth)
 	partners.Post("/verify", controllers.SubmitVerification)
+	partners.Post("/verify-pan", controllers.VerifyPAN)
+	partners.Post("/pan-gstin", controllers.GetGSTINsFromPAN)
 	partners.Get("/my-status", controllers.GetMyVerificationStatus)
 
 	events := api.Group("/events")

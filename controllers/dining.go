@@ -221,3 +221,47 @@ func SeedDiningVenues(c fiber.Ctx) error {
 
 	return utils.SuccessResponse(c, 219, "Dining venue seeded successfully", venue)
 }
+
+// AdminCreateDiningVenue - Admin can create dining venues without organizer checks
+func AdminCreateDiningVenue(c fiber.Ctx) error {
+	userID := c.Locals("uid").(string)
+
+	var venue models.DiningVenue
+	if err := c.Bind().Body(&venue); err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid request body")
+	}
+
+	venue.ID = utils.GenerateUUIDv7()
+	venue.OrganizerID = userID
+	venue.Status = "active"
+
+	if err := diningRepo.Create(c.Context(), &venue); err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to create dining venue")
+	}
+
+	return utils.SuccessResponse(c, 201, "Dining outlet created successfully (admin)", venue)
+}
+
+// AdminUpdateDiningVenue - Admin can update dining venues
+func AdminUpdateDiningVenue(c fiber.Ctx) error {
+	id := c.Params("id")
+	var venue models.DiningVenue
+	if err := c.Bind().Body(&venue); err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid request body")
+	}
+
+	existing, err := diningRepo.FindByID(c.Context(), id)
+	if err != nil || existing == nil {
+		return utils.ErrorResponse(c, 404, "Dining venue not found")
+	}
+
+	venue.ID = id
+	venue.OrganizerID = existing.OrganizerID
+	venue.CreatedAt = existing.CreatedAt
+
+	if err := diningRepo.Update(c.Context(), &venue); err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to update dining venue")
+	}
+
+	return utils.SuccessResponse(c, 200, "Dining venue updated successfully (admin)", venue)
+}

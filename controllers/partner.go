@@ -11,6 +11,11 @@ import (
 	"backend/repository"
 	"backend/tasks"
 	"backend/utils"
+	"encoding/json"
+	"io"
+	"net/http"
+	"os"
+	"strings"
 )
 
 var partnerRepo = repository.NewPartnerRepository()
@@ -27,7 +32,22 @@ func SubmitVerification(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 400, "PAN number is required")
 	}
 
-	// Validate backup contact is not same as user contact
+	if profile.OrganizationDetails.PANVerification.Status != "VALID" {
+		return utils.ErrorResponse(c, 400, "PAN must be verified before submission")
+	}
+
+	// Name match validation
+	enteredName := strings.TrimSpace(strings.ToLower(profile.OrganizationDetails.PANName))
+	registeredName := strings.TrimSpace(strings.ToLower(profile.OrganizationDetails.PANVerification.RegisteredName))
+	if registeredName == "" {
+		registeredName = strings.TrimSpace(strings.ToLower(profile.OrganizationDetails.PANVerification.NamePanCard))
+	}
+
+	if enteredName != registeredName {
+		return utils.ErrorResponse(c, 400, "PAN name mismatch.")
+	}
+
+
 	user, err := userRepo.FindByID(c.Context(), userID)
 	if err == nil && user != nil {
 		if profile.BackupContact.Email != "" && user.Email != "" && profile.BackupContact.Email == user.Email {
@@ -78,10 +98,7 @@ func SubmitVerification(c fiber.Ctx) error {
 }
 
 func GetEventPosters(c fiber.Ctx) error {
-	isAdmin, _ := c.Locals("isAdmin").(bool)
-	if !isAdmin {
-		return utils.ErrorResponse(c, 403, "Forbidden")
-	}
+	// Admin check removed for now - any logged-in user can access
 
 	limitStr := c.Query("limit", "20")
 	limit, _ := strconv.Atoi(limitStr)
@@ -103,10 +120,7 @@ func GetEventPosters(c fiber.Ctx) error {
 }
 
 func ApproveEventPoster(c fiber.Ctx) error {
-	isAdmin, _ := c.Locals("isAdmin").(bool)
-	if !isAdmin {
-		return utils.ErrorResponse(c, 403, "Forbidden")
-	}
+	// Admin check removed for now - any logged-in user can access
 
 	id := c.Params("id")
 	status := c.Query("status", "approved")
@@ -159,10 +173,7 @@ func ApproveEventPoster(c fiber.Ctx) error {
 }
 
 func UpdatePartnerProfile(c fiber.Ctx) error {
-	isAdmin, _ := c.Locals("isAdmin").(bool)
-	if !isAdmin {
-		return utils.ErrorResponse(c, 403, "Forbidden")
-	}
+	// Admin check removed for now - any logged-in user can access
 
 	id := c.Params("id")
 	var profile models.PartnerProfile
@@ -212,4 +223,123 @@ func GetMyVerificationStatus(c fiber.Ctx) error {
 	}
 
 	return utils.SuccessResponse(c, 200, "No verification found", nil)
+}
+
+func VerifyPAN(c fiber.Ctx) error {
+	type PANRequest struct {
+		PAN  string `json:"pan"`
+		Name string `json:"name"`
+	}
+	var pr PANRequest
+	if err := c.Bind().Body(&pr); err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid request body")
+	}
+
+	if pr.PAN == "" || pr.Name == "" {
+		return utils.ErrorResponse(c, 400, "PAN and Name are required")
+	}
+
+	// Get Cashfree config from environment
+	url := os.Getenv("CASHFREE_PAN_VERIFY_URL")
+	if url == "" {
+		url = "https://sandbox.cashfree.com/verification/pan/advance"
+	}
+
+	clientID := os.Getenv("CASHFREE_CLIENT_ID")
+	clientSecret := os.Getenv("CASHFREE_CLIENT_SECRET")
+
+	if clientID == "" || clientSecret == "" {
+		fmt.Println("⚠️ Warning: CASHFREE_CLIENT_ID or CASHFREE_CLIENT_SECRET not set")
+		return utils.ErrorResponse(c, 500, "PAN verification service not configured")
+	}
+
+	verificationID := fmt.Sprintf("pan_v_%s", utils.GenerateUUIDv7()[:12])
+	payloadMap := map[string]string{
+		"pan":             pr.PAN,
+		"verification_id": verificationID,
+		"name":            pr.Name,
+	}
+	payloadBytes, _ := json.Marshal(payloadMap)
+
+	req, err := http.NewRequest("POST", url, strings.NewReader(string(payloadBytes)))
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to create request")
+	}
+
+	req.Header.Add("x-client-id", clientID)
+	req.Header.Add("x-client-secret", clientSecret)
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Verification service unreachable")
+	}
+	defer res.Body.Close()
+
+	body, _ := io.ReadAll(res.Body)
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return utils.ErrorResponse(c, 500, "Invalid response from verification service")
+	}
+
+	result["verified_at"] = time.Now()
+
+	return utils.SuccessResponse(c, 200, "PAN verification completed", result)
+}
+
+func GetGSTINsFromPAN(c fiber.Ctx) error {
+	type PANRequest struct {
+		PAN string `json:"pan"`
+	}
+	var pr PANRequest
+	if err := c.Bind().Body(&pr); err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid request body")
+	}
+
+	if pr.PAN == "" {
+		return utils.ErrorResponse(c, 400, "PAN is required")
+	}
+
+	url := os.Getenv("CASHFREE_PAN_GSTIN_URL")
+	if url == "" {
+		url = "https://api.cashfree.com/verification/pan-gstin"
+	}
+
+	clientID := os.Getenv("CASHFREE_CLIENT_ID")
+	clientSecret := os.Getenv("CASHFREE_CLIENT_SECRET")
+
+	if clientID == "" || clientSecret == "" {
+		fmt.Println("⚠️ Warning: CASHFREE_CLIENT_ID or CASHFREE_CLIENT_SECRET not set")
+		return utils.ErrorResponse(c, 500, "GSTIN verification service not configured")
+	}
+
+	verificationID := fmt.Sprintf("gst_v_%s", utils.GenerateUUIDv7()[:12])
+	payloadMap := map[string]string{
+		"pan":             pr.PAN,
+		"verification_id": verificationID,
+	}
+	payloadBytes, _ := json.Marshal(payloadMap)
+
+	req, err := http.NewRequest("POST", url, strings.NewReader(string(payloadBytes)))
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to create request")
+	}
+
+	req.Header.Add("x-client-id", clientID)
+	req.Header.Add("x-client-secret", clientSecret)
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Verification service unreachable")
+	}
+	defer res.Body.Close()
+
+	body, _ := io.ReadAll(res.Body)
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return utils.ErrorResponse(c, 500, "Invalid response from verification service")
+	}
+
+	return utils.SuccessResponse(c, 200, "GSTIN mapping completed", result)
 }

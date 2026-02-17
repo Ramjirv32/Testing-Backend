@@ -179,3 +179,47 @@ func SeedPlayVenues(c fiber.Ctx) error {
 
 	return utils.SuccessResponse(c, 201, "Play venue seeded successfully", venue)
 }
+
+// AdminCreatePlayVenue - Admin can create play venues without organizer checks
+func AdminCreatePlayVenue(c fiber.Ctx) error {
+	userID := c.Locals("uid").(string)
+
+	var venue models.PlayVenue
+	if err := c.Bind().Body(&venue); err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid request body")
+	}
+
+	venue.ID = utils.GenerateUUIDv7()
+	venue.OrganizerID = userID
+	venue.Status = "active"
+
+	if err := playRepo.Create(c.Context(), &venue); err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to create play venue")
+	}
+
+	return utils.SuccessResponse(c, 201, "Play venue created successfully (admin)", venue)
+}
+
+// AdminUpdatePlayVenue - Admin can update play venues
+func AdminUpdatePlayVenue(c fiber.Ctx) error {
+	id := c.Params("id")
+	var venue models.PlayVenue
+	if err := c.Bind().Body(&venue); err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid request body")
+	}
+
+	existing, err := playRepo.FindByID(c.Context(), id)
+	if err != nil || existing == nil {
+		return utils.ErrorResponse(c, 404, "Play venue not found")
+	}
+
+	venue.ID = id
+	venue.OrganizerID = existing.OrganizerID
+	venue.CreatedAt = existing.CreatedAt
+
+	if err := playRepo.Update(c.Context(), &venue); err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to update play venue")
+	}
+
+	return utils.SuccessResponse(c, 200, "Play venue updated successfully (admin)", venue)
+}

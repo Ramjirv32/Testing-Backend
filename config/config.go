@@ -19,6 +19,10 @@ type Config struct {
 	PlayAppPass         string
 	AdminEmail          string
 	AdminAppPass        string
+	CashfreeClientID    string
+	CashfreeSecret      string
+	CashfreePANURL      string
+	CashfreePANGSTINURL string
 }
 
 func LoadConfig() *Config {
@@ -38,6 +42,10 @@ func LoadConfig() *Config {
 		PlayAppPass:         getEnv("PLAY_APP_PASSWORD", "irjs ojvn fbmh orht"),
 		AdminEmail:          getEnv("ADMIN_EMAIL", "admin@ticpin.in"),
 		AdminAppPass:        getEnv("ADMIN_APP_PASSWORD", ""),
+		CashfreeClientID:    getEnv("CASHFREE_CLIENT_ID", ""),
+		CashfreeSecret:      getEnv("CASHFREE_CLIENT_SECRET", ""),
+		CashfreePANURL:      getEnv("CASHFREE_PAN_VERIFY_URL", "https://api.cashfree.com/verification/pan/advance"),
+		CashfreePANGSTINURL: getEnv("CASHFREE_PAN_GSTIN_URL", "https://api.cashfree.com/verification/pan-gstin"),
 	}
 }
 

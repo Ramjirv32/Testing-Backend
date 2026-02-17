@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"log"
+	"os"
 
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
@@ -21,36 +22,28 @@ var (
 func InitFirebase(cfg *Config) {
 	ctx := context.Background()
 
-	// Check if we have hardcoded credentials (fallback) or environment variable
-	var credentialsJSON string
+	var opt option.ClientOption
 
+	// Priority 1: Use FIREBASE_CREDENTIALS environment variable
 	if cfg.FirebaseCredentials != "" {
-		// Use environment variable (RECOMMENDED for production)
-		credentialsJSON = cfg.FirebaseCredentials
 		log.Println("🔍 Using Firebase credentials from FIREBASE_CREDENTIALS environment variable")
+		opt = option.WithCredentialsJSON([]byte(cfg.FirebaseCredentials))
 	} else {
-		// Fallback to hardcoded credentials (for development/testing)
-		log.Println("🔍 Using hardcoded Firebase credentials")
-		credentialsJSON = `{
-  "type": "service_account",
-  "project_id": "ticpin-website",
-  "private_key_id": "79b256dff03bdbbcfbbc950f59d6665471d420f9",
-  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDoH4MWLDk/ASUe\nBttI1ym+/z+51ffC+Gm/vEvAXGzTluZ2x+ZRGS9HQA0oqpZbz4zdC+SDfDmwaPO4\nAfEGeztIP34/oTZwZLpF8i8IKye4zk/3lLbWm+aNMzTxI8JKB4oxNT374jhQ2ybP\n2yFMLXALXMlm6zDDxvn/xahgdZdW7FklWBKbIIC9y9R02buLR1DHe69Vvl5fktPg\nLVIr/l7ilN+IaL3KZFDqtQkUJ+iNTkOMQOnT7lcT5zGYUmdOrVRSg7ygGmvySLho\nSPBoGafEIJsXQ7H4mnSNRxuPIgPm/NXz48N7WOXb5YSo58DKx7cau7BqniXOb224\nvqe8Q837AgMBAAECggEAAy6vauXnUQRQgHVim0CL63jvZDpZP7yNIppPxY7e1RXM\nChPahgEc41Ku+4A/OHoDeeJYWy8gUVlXAg5QwiB9YxOvxOqOZwMShLP5zhhdXozB\njujkitOvWP87OhUd7ErnK56Jv4LN99nRUec0sSksUJOQlU8jJ4P6WHXaxZvHG+Nx\n9CA3Ypp+0Y7cAgXqqZ7z6LC9Gc1tuGLEquOyzhTU+PIP5t5BeBX0AY6xLehdZZKJ\ncf7yuWOCET8teh6kD2l65N3lup9touA2Nx3ZhF7vdVF1m7rJpJDGqyi6HgMWYQ+t\n9v6Y5ovilUWn3dEHJ1i5jGP1Ut2//Oj4EpAPgt0iHQKBgQD3KTl4S4hgtW+0ZltT\n85uB/uBADcysrv9sL8thhBUjWn9gCQ1mFk+6kDQUpQdQ/RHS3DH5ar+fHSFVGAkx\n9KjjtKbwSWPpUnP47Ny/fkjf2bX4jYcCMCVi+Pu1tCOnGOm6E2sUEE9D1luM9OAX\nIGZXt1xFuvattv3KjPchBbUjrwKBgQDwbJ0/C6zN0XZRqoIyuq7u8E+0payYPgqg\n6bCFuz8e0XDbsFFqshuvI3U0p6vUsk2HwcDzcvIvjrUhOXMuyI33/zjMwqcNAivo\nRkRDp7pSK/iwKQldxKJN27JRRewon1TGfnEFtS1+7ojuTw5d6arE7ddy/7INfHXG\nEIgcUToxdQKBgC6TaC8RHMwMpNY8C63QVFe07hFkCFPqTlvWzd68gzc8UJCKZCn+\nvluL3SSezLgoWHmB4TD9OssDNErS0rjFQCZY3rSdP+SyEwSvrhGv/I+ieTYzhWOW\nKxVxkg11uto8SZ81FZKcWDOSa4IuiyQQiPiypwLE7sNhnoXS9qcUakQlAoGBAII/\nVTDCcmtN/ntflAlHeV2YcpW66zXO5pMmBqtsNVXMwQdDDdhvhO/slaJg84XW0omp\nPY6lxu5csWO+a9f8bmzbpznGehliA8dhybmdNCMwDxngIWLbE9J6IrBE4RtgtdyS\nw0gETxFkyGnSCkZ2QD1PXFjAjQUhV+xlKFeu6YfBAoGANMAEx7iTzh1IuneKp7O4\n6n7yIrlOzKZc+ViUY4GCvyQyKT/nZEFnn19tca5vXmptbGdLIbrosaMumLEy+DaL\n91t+/1MfX+yjrxLDET4mHdJlNbxapKz673/5oJPbXRV8vmDQVvKpOpjQg2HzaLaL\nyP/tei69eh95RW0EBXXhYzU=\n-----END PRIVATE KEY-----\n",
-  "client_email": "firebase-adminsdk-fbsvc@ticpin-website.iam.gserviceaccount.com",
-  "client_id": "102027578202972861068",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40ticpin-website.iam.gserviceaccount.com",
-  "universe_domain": "googleapis.com"
-}`
+		// Priority 2: Use service account JSON file
+		credFile := "ticpin-website-firebase-adminsdk-fbsvc-fade32c947.json"
+		if _, err := os.Stat(credFile); err == nil {
+			log.Println("🔍 Using Firebase credentials from file:", credFile)
+			opt = option.WithCredentialsFile(credFile)
+		} else {
+			log.Fatal("❌ No Firebase credentials found. Set FIREBASE_CREDENTIALS env var or place service account JSON file in project root.")
+		}
 	}
 
-	// Pass credentials directly to Firebase - NO MANIPULATION
-	opt := option.WithCredentialsJSON([]byte(credentialsJSON))
-
-	// Initialize Firebase App
-	app, err := firebase.NewApp(ctx, nil, opt)
+	// Initialize Firebase App with storage bucket config
+	firebaseConfig := &firebase.Config{
+		StorageBucket: "ticpin-website.firebasestorage.app",
+	}
+	app, err := firebase.NewApp(ctx, firebaseConfig, opt)
 	if err != nil {
 		log.Fatalf("❌ Firebase init error: %v", err)
 	}

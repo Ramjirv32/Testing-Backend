@@ -2,11 +2,50 @@ package models
 
 import "time"
 
+type GSTINInfo struct {
+	GSTIN  string `json:"gstin" firestore:"gstin"`
+	Status string `json:"status" firestore:"status"`
+	State  string `json:"state" firestore:"state"`
+}
+
+type PANToGSTINMapping struct {
+	ReferenceID    int         `json:"reference_id" firestore:"reference_id"`
+	VerificationID string      `json:"verification_id" firestore:"verification_id"`
+	Status         string      `json:"status" firestore:"status"`
+	PAN            string      `json:"pan" firestore:"pan"`
+	GSTINList      []GSTINInfo `json:"gstin_list" firestore:"gstin_list"`
+}
+
+type PANVerification struct {
+	Status         string `json:"status" firestore:"status"` // VALID, INVALID
+	Message        string `json:"message" firestore:"message"`
+	ReferenceID    int    `json:"reference_id" firestore:"reference_id"`
+	VerificationID string `json:"verification_id" firestore:"verification_id"`
+	RegisteredName string `json:"registered_name" firestore:"registered_name"`
+	NamePanCard    string `json:"name_pan_card" firestore:"name_pan_card"`
+	Type           string `json:"type" firestore:"type"`
+	Gender         string `json:"gender" firestore:"gender"`
+	DOB            string `json:"date_of_birth" firestore:"date_of_birth"`
+	MaskedAadhaar  string `json:"masked_aadhaar_number" firestore:"masked_aadhaar_number"`
+	AadhaarLinked  bool   `json:"aadhaar_linked" firestore:"aadhaar_linked"`
+	Address        struct {
+		FullAddress string `json:"full_address" firestore:"full_address"`
+		Street      string `json:"street" firestore:"street"`
+		City        string `json:"city" firestore:"city"`
+		State       string `json:"state" firestore:"state"`
+		Pincode     int    `json:"pincode" firestore:"pincode"`
+		Country     string `json:"country" firestore:"country"`
+	} `json:"address" firestore:"address"`
+	VerifiedAt time.Time `json:"verified_at" firestore:"verified_at"`
+}
+
 type OrganizationDetails struct {
-	Category string `json:"category" firestore:"category"`
-	PAN      string `json:"pan" firestore:"pan"`
-	PANName  string `json:"pan_name" firestore:"pan_name"`
-	PANImage string `json:"pan_image" firestore:"pan_image"` // URL from Storage
+	Category        string            `json:"category" firestore:"category"`
+	PAN             string            `json:"pan" firestore:"pan"`
+	PANName         string            `json:"pan_name" firestore:"pan_name"`
+	PANImage        string            `json:"pan_image" firestore:"pan_image"` // URL from Storage
+	PANVerification PANVerification   `json:"pan_verification" firestore:"pan_verification"`
+	GSTINMapping    PANToGSTINMapping `json:"gstin_mapping" firestore:"gstin_mapping"`
 }
 
 type GSTDetails struct {
