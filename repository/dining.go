@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -85,28 +86,36 @@ func (r *DiningRepository) GetAll(ctx context.Context) ([]*models.DiningVenue, e
 }
 
 func (r *DiningRepository) GetBySlug(ctx context.Context, slug string) (*models.DiningVenue, error) {
+	if config.FirestoreClient == nil {
+		return nil, fmt.Errorf("Firestore client is not initialized")
+	}
+
 	iter := r.c().Where("slug", "==", slug).Limit(1).Documents(ctx)
 	doc, err := iter.Next()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query dining venue by slug: %w", err)
 	}
 
 	var d models.DiningVenue
 	if err := doc.DataTo(&d); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse dining venue data: %w", err)
 	}
 	return &d, nil
 }
 
 func (r *DiningRepository) FindByID(ctx context.Context, id string) (*models.DiningVenue, error) {
+	if config.FirestoreClient == nil {
+		return nil, fmt.Errorf("Firestore client is not initialized")
+	}
+
 	doc, err := r.c().Doc(id).Get(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get dining venue by ID: %w", err)
 	}
 
 	var d models.DiningVenue
 	if err := doc.DataTo(&d); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse dining venue data: %w", err)
 	}
 	return &d, nil
 }

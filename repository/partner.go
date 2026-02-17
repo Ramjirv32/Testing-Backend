@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -40,12 +41,12 @@ func (r *PartnerRepository) FindByUserIDAndCategory(ctx context.Context, userID 
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query partner by user ID: %w", err)
 	}
 
 	var ep models.PartnerProfile
 	if err := doc.DataTo(&ep); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse partner data: %w", err)
 	}
 	return &ep, nil
 }
@@ -55,14 +56,18 @@ func (r *PartnerRepository) FindByUserID(ctx context.Context, userID string) (*m
 }
 
 func (r *PartnerRepository) FindByID(ctx context.Context, id string) (*models.PartnerProfile, error) {
+	if config.FirestoreClient == nil {
+		return nil, fmt.Errorf("Firestore client is not initialized")
+	}
+
 	doc, err := r.c().Doc(id).Get(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get partner by ID: %w", err)
 	}
 
 	var ep models.PartnerProfile
 	if err := doc.DataTo(&ep); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse partner data: %w", err)
 	}
 	return &ep, nil
 }
@@ -97,7 +102,7 @@ func (r *PartnerRepository) GetPaginated(ctx context.Context, limit int, lastID 
 			break
 		}
 		if err != nil {
-			return nil, "", err
+			return nil, "", fmt.Errorf("failed to iterate partners: %w", err)
 		}
 
 		var ep models.PartnerProfile

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -30,48 +31,60 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 }
 
 func (r *UserRepository) FindByID(ctx context.Context, id string) (*models.User, error) {
+	if config.FirestoreClient == nil {
+		return nil, fmt.Errorf("Firestore client is not initialized")
+	}
+
 	doc, err := r.c().Doc(id).Get(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get user by ID: %w", err)
 	}
 
 	var user models.User
 	if err := doc.DataTo(&user); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse user data: %w", err)
 	}
 	return &user, nil
 }
 
 func (r *UserRepository) FindByPhone(ctx context.Context, phone string) (*models.User, error) {
+	if config.FirestoreClient == nil {
+		return nil, fmt.Errorf("Firestore client is not initialized")
+	}
+
 	iter := r.c().Where("phone", "==", phone).Limit(1).Documents(ctx)
 	doc, err := iter.Next()
 	if err == iterator.Done {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query user by phone: %w", err)
 	}
 
 	var user models.User
 	if err := doc.DataTo(&user); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse user data: %w", err)
 	}
 	return &user, nil
 }
 
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
+	if config.FirestoreClient == nil {
+		return nil, fmt.Errorf("Firestore client is not initialized")
+	}
+
 	iter := r.c().Where("email", "==", email).Limit(1).Documents(ctx)
 	doc, err := iter.Next()
 	if err == iterator.Done {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query user by email: %w", err)
 	}
 
 	var user models.User
 	if err := doc.DataTo(&user); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse user data: %w", err)
 	}
 	return &user, nil
 }
@@ -97,7 +110,7 @@ func (r *UserRepository) GetAll(ctx context.Context) ([]*models.User, error) {
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to iterate users: %w", err)
 		}
 
 		var user models.User

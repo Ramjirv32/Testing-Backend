@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -30,14 +31,18 @@ func (r *EventRepository) Create(ctx context.Context, e *models.Event) error {
 }
 
 func (r *EventRepository) FindByID(ctx context.Context, id string) (*models.Event, error) {
+	if config.FirestoreClient == nil {
+		return nil, fmt.Errorf("Firestore client is not initialized")
+	}
+
 	doc, err := r.c().Doc(id).Get(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get event by ID: %w", err)
 	}
 
 	var e models.Event
 	if err := doc.DataTo(&e); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse event data: %w", err)
 	}
 	return &e, nil
 }

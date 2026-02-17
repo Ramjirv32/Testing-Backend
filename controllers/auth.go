@@ -182,10 +182,16 @@ func Login(c fiber.Ctx) error {
 
 	isAdmin := phoneNumber == "6383667872"
 
+	// Verify Firestore is initialized
+	if config.FirestoreClient == nil {
+		fmt.Println("❌ Firestore is not initialized. Cannot proceed with login.")
+		return utils.ErrorResponse(c, 500, "Database service is not available. Please contact support.")
+	}
+
 	existingUser, err := userRepo.FindByPhone(c.Context(), phoneNumber)
 	if err != nil {
-		fmt.Printf("Database error finding user by phone (+%s): %v\n", phoneNumber, err)
-		return utils.ErrorResponse(c, 500, "Database error")
+		fmt.Printf("❌ Firestore query error for phone %s: %v\n", phoneNumber, err)
+		return utils.ErrorResponse(c, 500, fmt.Sprintf("Database query failed: %v", err))
 	}
 
 	var user *models.User

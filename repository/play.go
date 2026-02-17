@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -85,28 +86,36 @@ func (r *PlayRepository) GetAll(ctx context.Context) ([]*models.PlayVenue, error
 }
 
 func (r *PlayRepository) GetBySlug(ctx context.Context, slug string) (*models.PlayVenue, error) {
+	if config.FirestoreClient == nil {
+		return nil, fmt.Errorf("Firestore client is not initialized")
+	}
+
 	iter := r.c().Where("slug", "==", slug).Limit(1).Documents(ctx)
 	doc, err := iter.Next()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query play venue by slug: %w", err)
 	}
 
 	var v models.PlayVenue
 	if err := doc.DataTo(&v); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse play venue data: %w", err)
 	}
 	return &v, nil
 }
 
 func (r *PlayRepository) FindByID(ctx context.Context, id string) (*models.PlayVenue, error) {
+	if config.FirestoreClient == nil {
+		return nil, fmt.Errorf("Firestore client is not initialized")
+	}
+
 	doc, err := r.c().Doc(id).Get(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get play venue by ID: %w", err)
 	}
 
 	var v models.PlayVenue
 	if err := doc.DataTo(&v); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse play venue data: %w", err)
 	}
 	return &v, nil
 }

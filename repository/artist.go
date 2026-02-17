@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -35,6 +36,10 @@ func (r *ArtistRepository) Create(ctx context.Context, a *models.Artist) error {
 }
 
 func (r *ArtistRepository) GetAll(ctx context.Context) ([]*models.Artist, error) {
+	if config.FirestoreClient == nil {
+		return nil, fmt.Errorf("Firestore client is not initialized")
+	}
+
 	iter := r.c().OrderBy("name", firestore.Asc).Documents(ctx)
 	var artists []*models.Artist
 
@@ -44,7 +49,7 @@ func (r *ArtistRepository) GetAll(ctx context.Context) ([]*models.Artist, error)
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to iterate artists: %w", err)
 		}
 
 		var a models.Artist
@@ -58,14 +63,18 @@ func (r *ArtistRepository) GetAll(ctx context.Context) ([]*models.Artist, error)
 }
 
 func (r *ArtistRepository) FindByID(ctx context.Context, id string) (*models.Artist, error) {
+	if config.FirestoreClient == nil {
+		return nil, fmt.Errorf("Firestore client is not initialized")
+	}
+
 	doc, err := r.c().Doc(id).Get(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get artist by ID: %w", err)
 	}
 
 	var a models.Artist
 	if err := doc.DataTo(&a); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse artist data: %w", err)
 	}
 	return &a, nil
 }

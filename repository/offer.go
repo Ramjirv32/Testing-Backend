@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -35,6 +36,10 @@ func (r *OfferRepository) Create(ctx context.Context, o *models.Offer) error {
 }
 
 func (r *OfferRepository) GetByUserID(ctx context.Context, userID string) ([]*models.Offer, error) {
+	if config.FirestoreClient == nil {
+		return nil, fmt.Errorf("Firestore client is not initialized")
+	}
+
 	iter := r.c().Where("user_id", "==", userID).Documents(ctx)
 	var offers []*models.Offer
 
@@ -44,7 +49,7 @@ func (r *OfferRepository) GetByUserID(ctx context.Context, userID string) ([]*mo
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to iterate offers: %w", err)
 		}
 
 		var o models.Offer
@@ -58,6 +63,10 @@ func (r *OfferRepository) GetByUserID(ctx context.Context, userID string) ([]*mo
 }
 
 func (r *OfferRepository) GetAll(ctx context.Context) ([]*models.Offer, error) {
+	if config.FirestoreClient == nil {
+		return nil, fmt.Errorf("Firestore client is not initialized")
+	}
+
 	iter := r.c().Documents(ctx)
 	var offers []*models.Offer
 
@@ -67,7 +76,7 @@ func (r *OfferRepository) GetAll(ctx context.Context) ([]*models.Offer, error) {
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to iterate offers: %w", err)
 		}
 
 		var o models.Offer

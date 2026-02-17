@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -30,14 +31,18 @@ func (r *PlayBookingRepository) Create(ctx context.Context, booking *models.Play
 }
 
 func (r *PlayBookingRepository) FindByID(ctx context.Context, id string) (*models.PlayBooking, error) {
+	if config.FirestoreClient == nil {
+		return nil, fmt.Errorf("Firestore client is not initialized")
+	}
+
 	doc, err := r.c().Doc(id).Get(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get play booking by ID: %w", err)
 	}
 
 	var booking models.PlayBooking
 	if err := doc.DataTo(&booking); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse play booking data: %w", err)
 	}
 	return &booking, nil
 }
@@ -52,7 +57,7 @@ func (r *PlayBookingRepository) FindByUserID(ctx context.Context, userID string)
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to iterate play bookings: %w", err)
 		}
 
 		var booking models.PlayBooking
@@ -129,14 +134,18 @@ func (r *DiningBookingRepository) Create(ctx context.Context, booking *models.Di
 }
 
 func (r *DiningBookingRepository) FindByID(ctx context.Context, id string) (*models.DiningBooking, error) {
+	if config.FirestoreClient == nil {
+		return nil, fmt.Errorf("Firestore client is not initialized")
+	}
+
 	doc, err := r.c().Doc(id).Get(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get dining booking by ID: %w", err)
 	}
 
 	var booking models.DiningBooking
 	if err := doc.DataTo(&booking); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse dining booking data: %w", err)
 	}
 	return &booking, nil
 }
@@ -151,7 +160,7 @@ func (r *DiningBookingRepository) FindByUserID(ctx context.Context, userID strin
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to iterate dining bookings: %w", err)
 		}
 
 		var booking models.DiningBooking

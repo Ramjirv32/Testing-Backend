@@ -27,6 +27,13 @@ func InitFirebase(cfg *Config) {
 
 	if cfg.FirebasePrivateKey != "" && cfg.FirebaseClientEmail != "" {
 		// Reconstruct service account JSON from env vars
+		// Note: Private key should already be properly formatted in .env
+		privateKey := cfg.FirebasePrivateKey
+		// Only escape newlines if they're actual newline characters (not already escaped)
+		if !strings.Contains(privateKey, "\\n") {
+			privateKey = strings.ReplaceAll(privateKey, "\n", "\\n")
+		}
+
 		jsonCreds := fmt.Sprintf(`{
 			"type": "service_account",
 			"project_id": "%s",
@@ -38,9 +45,9 @@ func InitFirebase(cfg *Config) {
 			"client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/%s"
 		}`,
 			cfg.FirebaseProjectID,
-			strings.ReplaceAll(cfg.FirebasePrivateKey, "\n", "\\n"),
+			privateKey,
 			cfg.FirebaseClientEmail,
-			strings.ReplaceAll(cfg.FirebaseClientEmail, "@", "%%40"))
+			cfg.FirebaseClientEmail)
 
 		opt = option.WithCredentialsJSON([]byte(jsonCreds))
 	} else {
