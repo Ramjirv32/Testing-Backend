@@ -25,35 +25,49 @@ func InitFirebase(cfg *Config) {
 
 	var opt option.ClientOption
 
-	if cfg.FirebasePrivateKey != "" && cfg.FirebaseClientEmail != "" {
-		// Reconstruct service account JSON from env vars
-		// Note: Private key should already be properly formatted in .env
-		privateKey := cfg.FirebasePrivateKey
-		// Only escape newlines if they're actual newline characters (not already escaped)
-		if !strings.Contains(privateKey, "\\n") {
-			privateKey = strings.ReplaceAll(privateKey, "\n", "\\n")
-		}
+	// Debug logging for credentials (sanitized)
+	log.Printf("🔍 Firebase Config Check:")
+	log.Printf("  - Project ID: %s", cfg.FirebaseProjectID)
+	log.Printf("  - Client Email: %s", cfg.FirebaseClientEmail)
+	log.Printf("  - Private Key Length: %d chars", len(cfg.FirebasePrivateKey))
 
-		jsonCreds := fmt.Sprintf(`{
-			"type": "service_account",
-			"project_id": "%s",
-			"private_key": "%s",
-			"client_email": "%s",
-			"auth_uri": "https://accounts.google.com/o/oauth2/auth",
-			"token_uri": "https://oauth2.googleapis.com/token",
-			"auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-			"client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/%s"
-		}`,
-			cfg.FirebaseProjectID,
-			privateKey,
-			cfg.FirebaseClientEmail,
-			cfg.FirebaseClientEmail)
-
-		opt = option.WithCredentialsJSON([]byte(jsonCreds))
-	} else {
+	if cfg.FirebasePrivateKey == "" || cfg.FirebaseClientEmail == "" || cfg.FirebaseProjectID == "" {
 		log.Println("⚠️ Firebase environment variables missing. Firebase features will be disabled.")
+		log.Println("   Required: FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, FIREBASE_CLIENT_EMAIL")
 		return
 	}
+
+	// Handle private key - convert literal \n to actual newlines
+	privateKey := cfg.FirebasePrivateKey
+
+	// If the key contains literal \n (from environment variable), replace with actual newlines
+	if strings.Contains(privateKey, "\\n") {
+		privateKey = strings.ReplaceAll(privateKey, "\\n", "\n")
+	}
+
+	// Ensure the key starts and ends correctly
+	if !strings.HasPrefix(privateKey, "-----BEGIN PRIVATE KEY-----") {
+		log.Println("❌ Private key format is invalid - missing header")
+		return
+	}
+
+	// Build the service account JSON
+	jsonCreds := fmt.Sprintf(`{
+		"type": "service_account",
+		"project_id": "%s",
+		"private_key": "%s",
+		"client_email": "%s",
+		"auth_uri": "https://accounts.google.com/o/oauth2/auth",
+		"token_uri": "https://oauth2.googleapis.com/token",
+		"auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+		"client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/%s"
+	}`,
+		cfg.FirebaseProjectID,
+		strings.ReplaceAll(privateKey, "\n", "\\n"),
+		cfg.FirebaseClientEmail,
+		strings.ReplaceAll(cfg.FirebaseClientEmail, "@", "%40"))
+
+	opt = option.WithCredentialsJSON([]byte(jsonCreds))
 
 	firebaseCfg := &firebase.Config{
 		ProjectID:     cfg.FirebaseProjectID,
