@@ -10,9 +10,7 @@ import (
 type Config struct {
 	Port                string
 	Env                 string
-	FirebaseProjectID   string
-	FirebasePrivateKey  string
-	FirebaseClientEmail string
+	FirebaseCredentials string // Full service account JSON
 	DiningEmail         string
 	DiningAppPass       string
 	EventsEmail         string
@@ -31,9 +29,7 @@ func LoadConfig() *Config {
 	return &Config{
 		Port:                getEnv("PORT", ":9000"),
 		Env:                 getEnv("ENV", "development"),
-		FirebaseProjectID:   getEnv("FIREBASE_PROJECT_ID", ""),
-		FirebasePrivateKey:  getEnv("FIREBASE_PRIVATE_KEY", ""),
-		FirebaseClientEmail: getEnv("FIREBASE_CLIENT_EMAIL", ""),
+		FirebaseCredentials: getEnv("FIREBASE_CREDENTIALS", ""),
 		DiningEmail:         getEnv("DINING_EMAIL", "dining@ticpin.in"),
 		DiningAppPass:       getEnv("DINING_APP_PASSWORD", ""),
 		EventsEmail:         getEnv("EVENTS_EMAIL", "events@ticpin.in"),
