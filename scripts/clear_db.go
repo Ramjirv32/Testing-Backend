@@ -17,10 +17,9 @@ func main() {
 	// Load Configuration
 	cfg := config.LoadConfig()
 
-	// Initialize Firebase and Firestore
-	fmt.Println("🚀 Initializing Firestore...")
+	// Initialize Firebase
+	fmt.Println("🚀 Initializing Firebase Services...")
 	config.InitFirebase(cfg)
-	config.InitFirestore(config.FirebaseApp)
 
 	client := config.FirestoreClient
 	if client == nil {

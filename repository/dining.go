@@ -14,6 +14,9 @@ import (
 type DiningRepository struct{}
 
 func (r *DiningRepository) c() *firestore.CollectionRef {
+	if config.FirestoreClient == nil {
+		panic("FirestoreClient is not initialized. Check InitFirebase logs.")
+	}
 	return config.FirestoreClient.Collection("dining_venues")
 }
 

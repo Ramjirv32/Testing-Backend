@@ -23,12 +23,10 @@ func main() {
 	})
 
 	config.InitFirebase(cfg)
-	config.InitFirestore(config.FirebaseApp)
-	config.InitStorage(config.FirebaseApp)
 	utils.InitEmail(cfg)
 	tasks.StartEmailWorker()
 
-	log.Println("✅ Firebase, Firestore, and Email initialized successfully")
+	log.Println("✅ Firebase (Auth, Firestore, Storage) and Email initialized successfully")
 
 	// Dynamic CORS Middleware - Critical for cross-domain testing with credentials
 	app.Use(func(c fiber.Ctx) error {

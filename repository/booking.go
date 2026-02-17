@@ -14,6 +14,9 @@ import (
 type PlayBookingRepository struct{}
 
 func (r *PlayBookingRepository) c() *firestore.CollectionRef {
+	if config.FirestoreClient == nil {
+		panic("FirestoreClient is not initialized. Check InitFirebase logs.")
+	}
 	return config.FirestoreClient.Collection("play_bookings")
 }
 
@@ -110,6 +113,9 @@ func (r *PlayBookingRepository) DeleteAll(ctx context.Context) error {
 type DiningBookingRepository struct{}
 
 func (r *DiningBookingRepository) c() *firestore.CollectionRef {
+	if config.FirestoreClient == nil {
+		panic("FirestoreClient is not initialized. Check InitFirebase logs.")
+	}
 	return config.FirestoreClient.Collection("dining_bookings")
 }
 

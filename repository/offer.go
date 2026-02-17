@@ -14,6 +14,9 @@ import (
 type OfferRepository struct{}
 
 func (r *OfferRepository) c() *firestore.CollectionRef {
+	if config.FirestoreClient == nil {
+		panic("FirestoreClient is not initialized. Check InitFirebase logs.")
+	}
 	return config.FirestoreClient.Collection("offers")
 }
 

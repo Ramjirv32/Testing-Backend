@@ -95,9 +95,10 @@ func SendOTP(c fiber.Ctx) error {
 	// Generate 6-digit OTP
 	otp := fmt.Sprintf("%06d", rand.Intn(1000000))
 
-	// For testing/admin number, use static OTP
+	// For testing: Admin phone gets auto-OTP
+	// In production, remove this hardcoded logic
 	if req.Phone == "6383667872" {
-		otp = "123456"
+		otp = fmt.Sprintf("%06d", rand.Intn(1000000))
 	}
 
 	phoneOTPs[req.Phone] = OTPData{
@@ -162,11 +163,7 @@ func Login(c fiber.Ctx) error {
 		// Verify OTP
 		storedOTP, ok := phoneOTPs[req.Phone]
 		if !ok {
-			// Fallback for demo: allow 123456 for now if no OTP sent,
-			// but only if it's the admin number or if we want to be strict.
-			if req.OTP != "123456" || (req.Phone != "6383667872" && req.Phone != "9100000000") {
-				return utils.ErrorResponse(c, 401, "No verification request found for this phone number. Please request a new code.")
-			}
+			return utils.ErrorResponse(c, 401, "No verification request found for this phone number. Please request a new code.")
 		} else {
 			if time.Now().After(storedOTP.ExpiresAt) {
 				delete(phoneOTPs, req.Phone)

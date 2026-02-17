@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"strings"
 )
 
 func GenerateToken(userID string, isAdmin bool) string {
@@ -20,5 +21,11 @@ func GenerateToken(userID string, isAdmin bool) string {
 }
 
 func ValidateToken(token string) (string, bool, error) {
-	return "", false, nil
+	parts := strings.Split(token, "_")
+	if len(parts) < 2 {
+		return "", false, fmt.Errorf("invalid token format")
+	}
+	userID := parts[1]
+	isAdmin := parts[0] == "admin"
+	return userID, isAdmin, nil
 }

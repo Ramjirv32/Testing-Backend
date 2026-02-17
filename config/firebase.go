@@ -6,14 +6,18 @@ import (
 	"log"
 	"strings"
 
+	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
+	"firebase.google.com/go/v4/storage"
 	"google.golang.org/api/option"
 )
 
 var (
-	FirebaseApp  *firebase.App
-	FirebaseAuth *auth.Client
+	FirebaseApp     *firebase.App
+	FirebaseAuth    *auth.Client
+	FirestoreClient *firestore.Client
+	FirebaseStorage *storage.Client
 )
 
 func InitFirebase(cfg *Config) {
@@ -23,7 +27,6 @@ func InitFirebase(cfg *Config) {
 
 	if cfg.FirebasePrivateKey != "" && cfg.FirebaseClientEmail != "" {
 		// Reconstruct service account JSON from env vars
-		// We use standard Google URLs for the missing pieces
 		jsonCreds := fmt.Sprintf(`{
 			"type": "service_account",
 			"project_id": "%s",
@@ -37,7 +40,7 @@ func InitFirebase(cfg *Config) {
 			cfg.FirebaseProjectID,
 			strings.ReplaceAll(cfg.FirebasePrivateKey, "\n", "\\n"),
 			cfg.FirebaseClientEmail,
-			strings.ReplaceAll(cfg.FirebaseClientEmail, "@", "%%40")) // URL encoded for the cert URL
+			strings.ReplaceAll(cfg.FirebaseClientEmail, "@", "%%40"))
 
 		opt = option.WithCredentialsJSON([]byte(jsonCreds))
 	} else {
@@ -45,23 +48,45 @@ func InitFirebase(cfg *Config) {
 		return
 	}
 
-	config := &firebase.Config{
+	firebaseCfg := &firebase.Config{
 		ProjectID:     cfg.FirebaseProjectID,
 		StorageBucket: fmt.Sprintf("%s.firebasestorage.app", cfg.FirebaseProjectID),
 	}
-	app, err := firebase.NewApp(ctx, config, opt)
+
+	// 1. Initialize Firebase App
+	app, err := firebase.NewApp(ctx, firebaseCfg, opt)
 	if err != nil {
 		log.Printf("❌ Firebase init error: %v\n", err)
 		return
 	}
+	FirebaseApp = app
 
+	// 2. Initialize Auth
 	authClient, err := app.Auth(ctx)
 	if err != nil {
 		log.Printf("❌ Firebase auth error: %v\n", err)
-		return
+	} else {
+		FirebaseAuth = authClient
+		log.Println("✅ Firebase Auth initialized")
 	}
 
-	FirebaseApp = app
-	FirebaseAuth = authClient
-	log.Println("✅ Firebase initialized successfully using environment variables")
+	// 3. Initialize Firestore
+	firestoreClient, err := app.Firestore(ctx)
+	if err != nil {
+		log.Printf("❌ Firestore init error: %v\n", err)
+	} else {
+		FirestoreClient = firestoreClient
+		log.Println("✅ Firestore initialized")
+	}
+
+	// 4. Initialize Storage
+	storageClient, err := app.Storage(ctx)
+	if err != nil {
+		log.Printf("❌ Firebase storage error: %v\n", err)
+	} else {
+		FirebaseStorage = storageClient
+		log.Println("✅ Firebase Storage initialized")
+	}
+
+	log.Println("🚀 Firebase Services Sync Complete")
 }
