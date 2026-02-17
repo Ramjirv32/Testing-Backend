@@ -123,6 +123,7 @@ func Login(c fiber.Ctx) error {
 	}
 
 	var phoneNumber string
+	var firebaseUID string
 
 	// Handle Firebase Token Verification
 	if req.FirebaseToken != "" {
@@ -131,8 +132,11 @@ func Login(c fiber.Ctx) error {
 		}
 		token, err := config.FirebaseAuth.VerifyIDToken(c.Context(), req.FirebaseToken)
 		if err != nil {
+			fmt.Printf("Firebase token verification failed: %v\n", err)
 			return utils.ErrorResponse(c, 401, "Invalid or expired Firebase token")
 		}
+
+		firebaseUID = token.UID
 
 		// Extract phone number from token claims
 		phoneRaw, ok := token.Claims["phone_number"]
@@ -183,27 +187,38 @@ func Login(c fiber.Ctx) error {
 
 	existingUser, err := userRepo.FindByPhone(c.Context(), phoneNumber)
 	if err != nil {
+		fmt.Printf("Database error finding user by phone (+%s): %v\n", phoneNumber, err)
 		return utils.ErrorResponse(c, 500, "Database error")
 	}
 
 	var user *models.User
 	if existingUser != nil {
 		user = existingUser
+		// Update Firebase UID if missing
+		if user.FirebaseUID == "" && firebaseUID != "" {
+			user.FirebaseUID = firebaseUID
+			_ = userRepo.Update(c.Context(), user)
+		}
 	} else {
-		userID := utils.GenerateUUIDv7()
+		// Create new user using Firebase UID or internal ID
+		userID := firebaseUID
+		if userID == "" {
+			userID = utils.GenerateUUIDv7()
+		}
+
 		seqID := utils.GetNextSeqID()
 
 		user = &models.User{
-			ID:        userID,
-			SeqID:     seqID,
-			Phone:     phoneNumber,
-			Name:      "",
-			Email:     "",
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
+			ID:          userID,
+			FirebaseUID: firebaseUID,
+			SeqID:       seqID,
+			Phone:       phoneNumber,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		}
 
 		if err := userRepo.Create(c.Context(), user); err != nil {
+			fmt.Printf("Database error creating user: %v\n", err)
 			return utils.ErrorResponse(c, 500, "Failed to create user")
 		}
 	}

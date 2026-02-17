@@ -4,6 +4,7 @@ import "time"
 
 type User struct {
 	ID                string    `json:"id" firestore:"id"`
+	FirebaseUID       string    `json:"firebase_uid" firestore:"firebase_uid"`
 	SeqID             int64     `json:"seq_id" firestore:"seq_id"`
 	Email             string    `json:"email" firestore:"email"`
 	Password          string    `json:"-" firestore:"password"`
