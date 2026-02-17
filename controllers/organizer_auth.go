@@ -93,6 +93,10 @@ func OrganizerLogin(c fiber.Ctx) error {
 	return utils.SuccessResponse(c, 200, "Login successful", fiber.Map{
 		"token": token,
 		"user":  user,
+		"firebase_info": fiber.Map{
+			"uid":   user.ID,
+			"email": user.Email,
+		},
 	})
 }
 
@@ -133,8 +137,11 @@ func OrganizerGoogleLogin(c fiber.Ctx) error {
 		name = req.Name
 	}
 
-	user, _ := userRepo.FindByEmail(c.Context(), email)
-	if user == nil {
+	existingUser, _ := userRepo.FindByEmail(c.Context(), email)
+	newUser := existingUser == nil
+	user := existingUser
+
+	if newUser {
 		// New Google user, create profile
 		user = &models.User{
 			ID:              utils.GenerateUUIDv7(),
@@ -165,6 +172,11 @@ func OrganizerGoogleLogin(c fiber.Ctx) error {
 	return utils.SuccessResponse(c, 200, "Login successful", fiber.Map{
 		"token": token,
 		"user":  user,
+		"firebase_info": fiber.Map{
+			"uid":    user.ID,
+			"email":  user.Email,
+			"is_new": newUser,
+		},
 	})
 }
 

@@ -207,11 +207,6 @@ func Login(c fiber.Ctx) error {
 
 	token := utils.GenerateToken(user.ID, isAdmin)
 
-	response := &models.LoginResponse{
-		User:  user,
-		Token: token,
-	}
-
 	// Set cookie
 	cookie := new(fiber.Cookie)
 	cookie.Name = "authToken"
@@ -221,7 +216,15 @@ func Login(c fiber.Ctx) error {
 	cookie.SameSite = "Lax"
 	c.Cookie(cookie)
 
-	return utils.SuccessResponse(c, 200, "Login successful", response)
+	return utils.SuccessResponse(c, 200, "Login successful", fiber.Map{
+		"token": token,
+		"user":  user,
+		"firebase_info": fiber.Map{
+			"uid":         user.ID,
+			"phone":       user.Phone,
+			"is_new_user": existingUser == nil,
+		},
+	})
 }
 
 func Logout(c fiber.Ctx) error {
