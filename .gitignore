@@ -1,0 +1,28 @@
+# Firebase credentials (exclude only finalotp)
+finalotp-cfb22-firebase-adminsdk-fbsvc-d7950a7510.json
+
+# Binary files
+server
+
+# Environment files
+.env
+.env.local
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
