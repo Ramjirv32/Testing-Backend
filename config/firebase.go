@@ -2,8 +2,9 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"log"
-	"os"
+	"strings"
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
@@ -18,16 +19,27 @@ var (
 func InitFirebase(cfg *Config) {
 	ctx := context.Background()
 
-	// Check if file exists
-	if _, err := os.Stat(cfg.FirebaseKey); os.IsNotExist(err) {
-		log.Printf("⚠️ Firebase key file not found at %s. Firebase features will be disabled.\n", cfg.FirebaseKey)
+	var opt option.ClientOption
+
+	if cfg.FirebasePrivateKey != "" && cfg.FirebaseClientEmail != "" {
+		// Reconstruct service account JSON from individual env vars
+		jsonCreds := fmt.Sprintf(`{
+			"type": "service_account",
+			"project_id": "%s",
+			"client_email": "%s",
+			"private_key": "%s",
+			"token_uri": "https://oauth2.googleapis.com/token"
+		}`, cfg.FirebaseProjectID, cfg.FirebaseClientEmail, strings.ReplaceAll(cfg.FirebasePrivateKey, "\n", "\\n"))
+
+		opt = option.WithCredentialsJSON([]byte(jsonCreds))
+	} else {
+		log.Println("⚠️ Firebase environment variables missing. Firebase features will be disabled.")
 		return
 	}
 
-	opt := option.WithCredentialsFile(cfg.FirebaseKey)
 	config := &firebase.Config{
-		ProjectID:     "ticpin-website",
-		StorageBucket: "ticpin-website.firebasestorage.app",
+		ProjectID:     cfg.FirebaseProjectID,
+		StorageBucket: fmt.Sprintf("%s.firebasestorage.app", cfg.FirebaseProjectID),
 	}
 	app, err := firebase.NewApp(ctx, config, opt)
 	if err != nil {
@@ -43,5 +55,5 @@ func InitFirebase(cfg *Config) {
 
 	FirebaseApp = app
 	FirebaseAuth = authClient
-	log.Println("✅ Firebase initialized successfully")
+	log.Println("✅ Firebase initialized successfully using environment variables")
 }

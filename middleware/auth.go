@@ -20,7 +20,7 @@ func Auth(c fiber.Ctx) error {
 			return utils.ErrorResponse(c, 401, "Invalid authorization format")
 		}
 	} else {
-		// Fallback to cookie
+	
 		token = c.Cookies("authToken")
 	}
 

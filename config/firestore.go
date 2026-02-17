@@ -5,20 +5,23 @@ import (
 	"log"
 
 	"cloud.google.com/go/firestore"
-	"google.golang.org/api/option"
+	firebase "firebase.google.com/go/v4"
 )
 
 var FirestoreClient *firestore.Client
 
-func InitFirestore(cfg *Config) {
-	ctx := context.Background()
+func InitFirestore(app *firebase.App) {
+	if app == nil {
+		log.Println("⚠️ Firebase app is nil, skipping Firestore initialization")
+		return
+	}
 
-	opt := option.WithCredentialsFile(cfg.FirebaseKey)
-	client, err := firestore.NewClient(ctx, "ticpin-website", opt)
+	ctx := context.Background()
+	client, err := app.Firestore(ctx)
 	if err != nil {
 		log.Fatalf("Firestore init error: %v", err)
 	}
 
 	FirestoreClient = client
-	log.Println("Firestore initialized successfully")
+	log.Println("✅ Firestore initialized successfully")
 }

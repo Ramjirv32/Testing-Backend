@@ -23,7 +23,7 @@ func main() {
 	})
 
 	config.InitFirebase(cfg)
-	config.InitFirestore(cfg)
+	config.InitFirestore(config.FirebaseApp)
 	config.InitStorage(config.FirebaseApp)
 	utils.InitEmail(cfg)
 	tasks.StartEmailWorker()
