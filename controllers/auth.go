@@ -126,9 +126,12 @@ func Login(c fiber.Ctx) error {
 
 	// Handle Firebase Token Verification
 	if req.FirebaseToken != "" {
+		if config.FirebaseAuth == nil {
+			return utils.ErrorResponse(c, 500, "Firebase authentication is not initialized on the server. Please check server logs.")
+		}
 		token, err := config.FirebaseAuth.VerifyIDToken(c.Context(), req.FirebaseToken)
 		if err != nil {
-			return utils.ErrorResponse(c, 401, "Invalid Firebase token")
+			return utils.ErrorResponse(c, 401, "Invalid or expired Firebase token")
 		}
 
 		// Extract phone number from token claims
@@ -158,16 +161,16 @@ func Login(c fiber.Ctx) error {
 			// Fallback for demo: allow 123456 for now if no OTP sent,
 			// but only if it's the admin number or if we want to be strict.
 			if req.OTP != "123456" || (req.Phone != "6383667872" && req.Phone != "9100000000") {
-				return utils.ErrorResponse(c, 401, "No OTP sent for this phone number")
+				return utils.ErrorResponse(c, 401, "No verification request found for this phone number. Please request a new code.")
 			}
 		} else {
 			if time.Now().After(storedOTP.ExpiresAt) {
 				delete(phoneOTPs, req.Phone)
-				return utils.ErrorResponse(c, 401, "OTP has expired")
+				return utils.ErrorResponse(c, 401, "The verification code has expired. Please request a new one.")
 			}
 
 			if storedOTP.OTP != req.OTP {
-				return utils.ErrorResponse(c, 401, "Invalid OTP code")
+				return utils.ErrorResponse(c, 401, "The verification code you entered is incorrect. Please check and try again.")
 			}
 
 			// Success - remove the OTP

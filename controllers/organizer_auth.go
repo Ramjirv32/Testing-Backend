@@ -21,7 +21,7 @@ func OrganizerRegister(c fiber.Ctx) error {
 	// Check if already exists
 	existing, _ := userRepo.FindByEmail(c.Context(), req.Email)
 	if existing != nil {
-		return utils.ErrorResponse(c, 400, "Email already registered")
+		return utils.ErrorResponse(c, 400, "This email is already registered. Please try logging in instead.")
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
@@ -68,7 +68,7 @@ func OrganizerLogin(c fiber.Ctx) error {
 
 	user, _ := userRepo.FindByEmail(c.Context(), req.Email)
 	if user == nil {
-		return utils.ErrorResponse(c, 401, "Invalid email or password")
+		return utils.ErrorResponse(c, 401, "No account was found with this email. Please register first.")
 	}
 
 	if !user.IsEmailVerified {
@@ -76,7 +76,7 @@ func OrganizerLogin(c fiber.Ctx) error {
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-		return utils.ErrorResponse(c, 401, "Invalid email or password")
+		return utils.ErrorResponse(c, 401, "The password you entered is incorrect. Please try again.")
 	}
 
 	token := utils.GenerateToken(user.ID, false) // Organizers are not admins by default
@@ -188,16 +188,16 @@ func OrganizerVerifyOTP(c fiber.Ctx) error {
 
 	storedOTP, ok := emailOTPs[req.Email]
 	if !ok {
-		return utils.ErrorResponse(c, 401, "No OTP sent for this email")
+		return utils.ErrorResponse(c, 401, "No verification request found for this email. Please request a new code.")
 	}
 
 	if time.Now().After(storedOTP.ExpiresAt) {
 		delete(emailOTPs, req.Email)
-		return utils.ErrorResponse(c, 401, "OTP has expired")
+		return utils.ErrorResponse(c, 401, "The verification code has expired. Please request a new one.")
 	}
 
 	if storedOTP.OTP != req.OTP {
-		return utils.ErrorResponse(c, 401, "Invalid OTP code")
+		return utils.ErrorResponse(c, 401, "The verification code you entered is incorrect. Please check and try again.")
 	}
 
 	user, _ := userRepo.FindByEmail(c.Context(), req.Email)
