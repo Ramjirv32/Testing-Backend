@@ -4,6 +4,7 @@
 server
 main
 backend
+backend.exe
 *.log
 *.json
 
