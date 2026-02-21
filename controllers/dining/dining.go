@@ -242,7 +242,7 @@ func SeedDiningVenues(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 500, "Failed to seed dining venue")
 	}
 
-	return utils.SuccessResponse(c, 219, "Dining venue seeded successfully", venue)
+	return utils.SuccessResponse(c, 201, "Dining venue seeded successfully", venue)
 }
 
 func AdminCreateDiningVenue(c fiber.Ctx) error {

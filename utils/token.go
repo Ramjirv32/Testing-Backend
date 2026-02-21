@@ -5,11 +5,15 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
+	"time"
 )
 
 func GenerateToken(userID string, isAdmin bool) string {
 	randomBytes := make([]byte, 32)
-	rand.Read(randomBytes)
+	if _, err := rand.Read(randomBytes); err != nil {
+	
+		randomBytes = []byte(fmt.Sprintf("%064d", time.Now().UnixNano()))
+	}
 	// Use StdEncoding (no _ chars) so token splitting on "_" is unambiguous
 	token := base64.StdEncoding.EncodeToString(randomBytes)
 
