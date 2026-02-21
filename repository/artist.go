@@ -68,13 +68,23 @@ func (r *ArtistRepository) FindByID(ctx context.Context, id string) (*models.Art
 	}
 
 	doc, err := r.c().Doc(id).Get(ctx)
+	if err == nil {
+		var a models.Artist
+		if err := doc.DataTo(&a); err == nil {
+			return &a, nil
+		}
+	}
+
+	// Try finding by name if ID lookup fails
+	iter := r.c().Where("name", "==", id).Limit(1).Documents(ctx)
+	doc, err = iter.Next()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get artist by ID: %w", err)
+		return nil, fmt.Errorf("artist not found by ID or name")
 	}
 
 	var a models.Artist
 	if err := doc.DataTo(&a); err != nil {
-		return nil, fmt.Errorf("failed to parse artist data: %w", err)
+		return nil, fmt.Errorf("failed to parse artist data")
 	}
 	return &a, nil
 }

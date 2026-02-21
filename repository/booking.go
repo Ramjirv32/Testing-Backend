@@ -48,7 +48,7 @@ func (r *PlayBookingRepository) FindByID(ctx context.Context, id string) (*model
 }
 
 func (r *PlayBookingRepository) FindByUserID(ctx context.Context, userID string) ([]*models.PlayBooking, error) {
-	iter := r.c().Where("user_id", "==", userID).OrderBy("created_at", firestore.Desc).Documents(ctx)
+	iter := r.c().Where("user_id", "==", userID).Documents(ctx)
 	var bookings []*models.PlayBooking
 
 	for {
@@ -79,6 +79,16 @@ func (r *PlayBookingRepository) Update(ctx context.Context, booking *models.Play
 func (r *PlayBookingRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.c().Doc(id).Delete(ctx)
 	return err
+}
+
+func (r *PlayBookingRepository) CheckPlayAvailability(ctx context.Context, venueID, date, timeSlot string) (bool, error) {
+	iter := r.c().Where("venue_id", "==", venueID).Where("date", "==", date).Where("time_slot", "==", timeSlot).Where("status", "==", models.BookingConfirmed).Documents(ctx)
+	snaps, err := iter.GetAll()
+	if err != nil {
+		return false, err
+	}
+	// For now, assume 1 court per slot. If anyone booked, it's unavailable.
+	return len(snaps) == 0, nil
 }
 
 func (r *PlayBookingRepository) DeleteAll(ctx context.Context) error {
@@ -151,7 +161,7 @@ func (r *DiningBookingRepository) FindByID(ctx context.Context, id string) (*mod
 }
 
 func (r *DiningBookingRepository) FindByUserID(ctx context.Context, userID string) ([]*models.DiningBooking, error) {
-	iter := r.c().Where("user_id", "==", userID).OrderBy("created_at", firestore.Desc).Documents(ctx)
+	iter := r.c().Where("user_id", "==", userID).Documents(ctx)
 	var bookings []*models.DiningBooking
 
 	for {
@@ -182,6 +192,16 @@ func (r *DiningBookingRepository) Update(ctx context.Context, booking *models.Di
 func (r *DiningBookingRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.c().Doc(id).Delete(ctx)
 	return err
+}
+
+func (r *DiningBookingRepository) CheckDiningAvailability(ctx context.Context, restaurantID, date, timeSlot string) (bool, error) {
+	iter := r.c().Where("restaurant_id", "==", restaurantID).Where("date", "==", date).Where("time_slot", "==", timeSlot).Where("status", "==", models.BookingConfirmed).Documents(ctx)
+	snaps, err := iter.GetAll()
+	if err != nil {
+		return false, err
+	}
+	// For now, assume a limit of 5 tables per slot.
+	return len(snaps) < 5, nil
 }
 
 func (r *DiningBookingRepository) DeleteAll(ctx context.Context) error {
@@ -216,4 +236,73 @@ func (r *DiningBookingRepository) DeleteAll(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+type EventBookingRepository struct{}
+
+func (r *EventBookingRepository) c() *firestore.CollectionRef {
+	if config.FirestoreClient == nil {
+		panic("FirestoreClient is not initialized. Check InitFirebase logs.")
+	}
+	return config.FirestoreClient.Collection("event_bookings")
+}
+
+func NewEventBookingRepository() *EventBookingRepository {
+	return &EventBookingRepository{}
+}
+
+func (r *EventBookingRepository) Create(ctx context.Context, booking *models.EventBooking) error {
+	_, err := r.c().Doc(booking.ID).Set(ctx, booking)
+	return err
+}
+
+func (r *EventBookingRepository) FindByID(ctx context.Context, id string) (*models.EventBooking, error) {
+	if config.FirestoreClient == nil {
+		return nil, fmt.Errorf("Firestore client is not initialized")
+	}
+
+	doc, err := r.c().Doc(id).Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get event booking by ID: %w", err)
+	}
+
+	var booking models.EventBooking
+	if err := doc.DataTo(&booking); err != nil {
+		return nil, fmt.Errorf("failed to parse event booking data: %w", err)
+	}
+	return &booking, nil
+}
+
+func (r *EventBookingRepository) FindByUserID(ctx context.Context, userID string) ([]*models.EventBooking, error) {
+	iter := r.c().Where("user_id", "==", userID).Documents(ctx)
+	var bookings []*models.EventBooking
+
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate event bookings: %w", err)
+		}
+
+		var booking models.EventBooking
+		if err := doc.DataTo(&booking); err != nil {
+			continue
+		}
+		bookings = append(bookings, &booking)
+	}
+
+	return bookings, nil
+}
+
+func (r *EventBookingRepository) Update(ctx context.Context, booking *models.EventBooking) error {
+	booking.UpdatedAt = time.Now()
+	_, err := r.c().Doc(booking.ID).Set(ctx, booking)
+	return err
+}
+
+func (r *EventBookingRepository) Delete(ctx context.Context, id string) error {
+	_, err := r.c().Doc(id).Delete(ctx)
+	return err
 }

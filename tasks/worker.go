@@ -30,7 +30,7 @@ func StartEmailWorker() {
 func EnqueueEmail(from utils.EmailType, to, subject, body string) {
 	select {
 	case EmailQueue <- EmailTask{From: from, To: to, Subject: subject, Body: body}:
-		// Enqueued
+		
 	default:
 		log.Printf("Email queue full, falling back to sync sending for %s", to)
 		_ = utils.SendEmail(from, to, subject, body)

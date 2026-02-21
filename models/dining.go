@@ -51,7 +51,8 @@ type DiningVenue struct {
 	OrganizerID        string          `json:"organizer_id" firestore:"organizer_id"`
 	Name               string          `json:"name" firestore:"name"`
 	Slug               string          `json:"slug" firestore:"slug"`
-	Status             string          `json:"status" firestore:"status"` // active, inactive, draft
+	Status             string          `json:"status" firestore:"status"`
+	RejectionReason    string          `json:"rejection_reason" firestore:"rejection_reason"`
 	Description        string          `json:"description" firestore:"description"`
 	ShortDescription   string          `json:"short_description" firestore:"short_description"`
 	Rating             float64         `json:"rating" firestore:"rating"`
@@ -62,6 +63,7 @@ type DiningVenue struct {
 	Location           DiningLocation  `json:"location" firestore:"location"`
 	Images             DiningImages    `json:"images" firestore:"images"`
 	MenuImages         []string        `json:"menu_images" firestore:"menu_images"`
+	PopularDishes      []string        `json:"popular_dishes" firestore:"popular_dishes"`
 	Offers             []DiningOffer   `json:"offers" firestore:"offers"`
 	Facilities         []string        `json:"facilities" firestore:"facilities"`
 	SeatingTypes       []SeatingType   `json:"seating_types" firestore:"seating_types"`

@@ -42,12 +42,14 @@ type PlayVenue struct {
 	OrganizerID            string       `json:"organizer_id" firestore:"organizer_id"`
 	Name                   string       `json:"name" firestore:"name"`
 	Slug                   string       `json:"slug" firestore:"slug"`
-	Status                 string       `json:"status" firestore:"status"` // active, inactive, draft
+	Status                 string       `json:"status" firestore:"status"`
+	RejectionReason        string       `json:"rejection_reason" firestore:"rejection_reason"`
 	About                  string       `json:"about" firestore:"about"`
 	ShortAbout             string       `json:"short_about" firestore:"short_about"`
 	DurationPerSlotMinutes int          `json:"duration_per_slot_minutes" firestore:"duration_per_slot_minutes"`
 	Location               PlayLocation `json:"location" firestore:"location"`
 	Images                 PlayImages   `json:"images" firestore:"images"`
+	Sports                 []string     `json:"sports" firestore:"sports"`
 	PlayOptions            []PlayOption `json:"play_options" firestore:"play_options"`
 	SlotSettings           SlotSettings `json:"slot_settings" firestore:"slot_settings"`
 	FAQs                   []PlayFAQ    `json:"faqs" firestore:"faqs"`

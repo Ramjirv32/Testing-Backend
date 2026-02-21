@@ -4,7 +4,7 @@ import "time"
 
 type Offer struct {
 	ID          string    `json:"id" firestore:"id"`
-	UserID      string    `json:"user_id" firestore:"user_id"` // Mapped to a specific user
+	UserID      string    `json:"user_id" firestore:"user_id"` 
 	Code        string    `json:"code" firestore:"code"`
 	Discount    string    `json:"discount" firestore:"discount"`
 	Description string    `json:"description" firestore:"description"`

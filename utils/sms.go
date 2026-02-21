@@ -5,12 +5,9 @@ import (
 	"log"
 )
 
-
 func SendSMS(phone string, message string) error {
 	
 	log.Printf("\n--- SMS TO %s ---\n%s\n-------------------\n", phone, message)
-
-	
 
 	return nil
 }

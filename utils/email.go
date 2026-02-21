@@ -2,9 +2,9 @@ package utils
 
 import (
 	"backend/config"
-	"crypto/tls"
 	"fmt"
 	"log"
+	"os"
 
 	"gopkg.in/gomail.v2"
 )
@@ -27,31 +27,38 @@ type EmailSender struct {
 
 var senders map[EmailType]EmailSender
 
+func getEnvOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
 func InitEmail(cfg *config.Config) {
 	senders = map[EmailType]EmailSender{
 		EmailDining: {
 			SMTPHost: "smtp.gmail.com",
 			SMTPPort: 587,
-			Email:    cfg.DiningEmail,
-			Password: cfg.DiningAppPass,
+			Email:    getEnvOrDefault("DINING_EMAIL", "dining@ticpin.in"),
+			Password: getEnvOrDefault("DINING_APP_PASSWORD", ""),
 		},
 		EmailEvents: {
 			SMTPHost: "smtp.gmail.com",
 			SMTPPort: 587,
-			Email:    cfg.EventsEmail,
-			Password: cfg.EventsAppPass,
+			Email:    getEnvOrDefault("EVENTS_EMAIL", "events@ticpin.in"),
+			Password: getEnvOrDefault("EVENTS_APP_PASSWORD", ""),
 		},
 		EmailPlay: {
 			SMTPHost: "smtp.gmail.com",
 			SMTPPort: 587,
-			Email:    cfg.PlayEmail,
-			Password: cfg.PlayAppPass,
+			Email:    getEnvOrDefault("PLAY_EMAIL", "play@ticpin.in"),
+			Password: getEnvOrDefault("PLAY_APP_PASSWORD", ""),
 		},
 		EmailAdmin: {
 			SMTPHost: "smtp.gmail.com",
 			SMTPPort: 587,
-			Email:    cfg.AdminEmail,
-			Password: cfg.AdminAppPass,
+			Email:    getEnvOrDefault("ADMIN_EMAIL", "admin@ticpin.in"),
+			Password: getEnvOrDefault("ADMIN_APP_PASSWORD", ""),
 		},
 	}
 }
@@ -65,25 +72,48 @@ func SendEmail(emailType EmailType, to string, subject string, body string) erro
 		return fmt.Errorf("invalid email type: %s", emailType)
 	}
 
+	// Check if password is configured
+	if sender.Password == "" {
+		log.Printf("⚠️  Email sending failed: No password configured for %s (email: %s)", emailType, sender.Email)
+		return fmt.Errorf("email account not configured: missing password for %s", emailType)
+	}
+
 	m := gomail.NewMessage()
-	m.SetHeader("From", sender.Email)
+	m.SetHeader("From", fmt.Sprintf("TicPin <%s>", sender.Email))
 	m.SetHeader("To", to)
 	m.SetHeader("Subject", subject)
 	m.SetBody("text/html", body)
 
 	d := gomail.NewDialer(sender.SMTPHost, sender.SMTPPort, sender.Email, sender.Password)
-	d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 
-	// Send the email
+	log.Printf("📧 Sending email to %s from %s...", to, sender.Email)
 	if err := d.DialAndSend(m); err != nil {
-		log.Printf("Failed to send email via %s: %v", emailType, err)
+		log.Printf("❌ Failed to send email via %s to %s: %v", emailType, to, err)
 		return err
+	}
+
+	log.Printf("✅ Email sent successfully to %s from %s", to, sender.Email)
+	return nil
+}
+
+// SendOTPEmail sends an OTP email and falls back gracefully in development mode.
+// In production it returns an error if sending fails (caller should return 500).
+// In development it logs the OTP to the console so you can test without real SMTP.
+func SendOTPEmail(emailType EmailType, to, subject, body, otp string) error {
+	// In development: log the OTP to console so you can test even if SMTP is slow
+	if config.CurrentEnv != "production" {
+		log.Printf("💡  [DEV] OTP for %s → %s", to, otp)
+	}
+
+	err := SendEmail(emailType, to, subject, body)
+	if err != nil {
+		log.Printf("❌ [OTP] Failed to send OTP email to %s: %v", to, err)
+		return err // always return the error so the controller can respond with 500
 	}
 
 	return nil
 }
 
-// UpdateSenderPassword allows updating passwords dynamically if needed
 func UpdateSenderPassword(emailType EmailType, password string) {
 	if sender, ok := senders[emailType]; ok {
 		sender.Password = password
@@ -91,79 +121,644 @@ func UpdateSenderPassword(emailType EmailType, password string) {
 	}
 }
 
+func getEmailLogoSVG() string {
+	return `<img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/logo.png?alt=media" width="140" height="35" style="display:block;margin:0 auto;">`
+}
+
+// getEmailSocialFooter returns the common email footer with help section, social icons and copyright
+func getEmailSocialFooter() string {
+	return `<table width="450" cellpadding="0" cellspacing="0" style="margin-top:20px;color:#ffffff;">
+<tr>
+<td style="font-weight:600;font-size:30px;line-height:100%%;">
+LOOKING FOR HELP?
+</td>
+</tr>
+
+<tr>
+<td style="padding-top:10px;font-weight:500;font-size:20px;line-height:22px;">
+Mail us at <span style="color:#4EA3FF;">support@ticpin.in</span> (10AM-5PM), and we’ll help you out.
+</td>
+</tr>
+
+<tr>
+<td style="padding-top:12px;">
+<hr style="border:1px solid #ffffff;">
+</td>
+</tr>
+
+<tr>
+<td align="center" style="padding:12px 0;">
+<a href="#">
+    <img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/whatsapp.png?alt=media" width="50" height="50" style="display:inline-block;">
+</a>
+<a href="#" style="margin:0 25px;display:inline-block;">
+    <img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/facebook.png?alt=media" width="50" height="50" style="display:inline-block;">
+</a>
+<a href="#">
+    <img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/insta.png?alt=media" width="50" height="50" style="display:inline-block;">
+</a>
+<a href="#" style="margin:0 25px;display:inline-block;">
+    <img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/youtube.png?alt=media" width="50" height="50" style="display:inline-block;">
+</a>
+<a href="#">
+    <img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/tiwteer.png?alt=media" width="50" height="50" style="display:inline-block;">
+</a>
+</td>
+</tr>
+
+<tr>
+<td>
+<hr style="border:1px solid #ffffff;">
+</td>
+</tr>
+</table>`
+}
+
 func GetOTPEmailTemplate(otp string) string {
-	return fmt.Sprintf(`
-<div style="margin: 0; padding: 0; font-family: 'Anek Latin', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%%" style="background-color: #0A0132; padding: 40px 10px;">
-        <tr>
-            <td align="center">
-                <!-- Main Container -->
-                <table border="0" cellpadding="0" cellspacing="0" width="100%%" style="max-width: 480px; margin: 0 auto; background-color: #0A0132; border-radius: 24px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
-                    <!-- Header -->
-                    <tr>
-                        <td align="center" style="background-color: #5331EA; height: 100px; color: #ffffff;">
-                            <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 2px;">TICPIN</h1>
-                        </td>
-                    </tr>
-                    
-                    <!-- Content Card (White) -->
-                    <tr>
-                        <td align="center" style="padding: 24px;">
-                            <table border="0" cellpadding="0" cellspacing="0" width="100%%" style="max-width: 420px; background-color: #ffffff; border-radius: 20px; margin: 0 auto;">
-                                <tr>
-                                    <td align="center" style="padding: 40px 20px;">
-                                        <h2 style="color: #000000; font-size: 28px; font-weight: 600; margin: 0 0 32px 0; line-height: 32px;">Welcome to Ticpin</h2>
-                                        
-                                        <p style="color: #000000; font-size: 18px; font-weight: 500; margin: 0 0 12px 0; line-height: 22px;">Your OTP for login is</p>
-                                        
-                                        <div style="color: #5331EA; font-size: 40px; font-weight: 700; margin: 0 0 24px 0; line-height: 48px; letter-spacing: 4px;">%s</div>
-                                        
-                                        <p style="color: #666666; font-size: 14px; font-weight: 500; margin: 0; line-height: 18px;">This is valid for 5 mins</p>
-                                    </td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Ticpin OTP</title>
+<link href="https://fonts.googleapis.com/css2?family=Anek+Latin:wght@500;600&display=swap" rel="stylesheet">
+</head>
 
-                    <!-- Footer Help Section -->
-                    <tr>
-                        <td style="padding: 32px 32px 48px 32px;">
-                            <h3 style="color: #ffffff; font-size: 35px; font-weight: 600; margin: 0 0 24px 0; line-height: 38px; text-transform: uppercase;">LOOKING FOR HELP?</h3>
-                            
-                            <p style="color: #ffffff; font-size: 20px; font-weight: 500; margin: 0 0 32px 0; line-height: 22px;">
-                                Mail us at <a href="mailto:support@ticpin.in" style="color: #60a5fa; text-decoration: underline;">support@ticpin.in</a> (10AM-5PM), and we'll help you out.
-                            </p>
-                            
-                            <!-- Divider -->
-                            <div style="border-top: 1px solid rgba(255,255,255,0.2); margin-bottom: 32px;"></div>
+<body style="margin:0;padding:40px 20px;background:#f0f0f0;font-family:'Anek Latin', sans-serif;">
 
-                            <!-- Social Icons -->
-                            <table border="0" cellpadding="0" cellspacing="0" align="center">
-                                <tr>
-                                    <td style="padding: 0 12px;">
-                                        <a href="#"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCA1MCA1MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgIDxwYXRoIGQ9Ik0zNC41ODI3IDI5LjE2NjZDNDM0LjE2NiAyOC45NTgzIDMxLjQ1NzcgMjcuNzA4MyAzMS4wNDEgMjcuNUMzMC42MjQzIDI3LjI5MTYgMzAuMjA3NyAyNy4yOTE2IDI5Ljc5MSAyNy43MDgzQzI5LjM3NDMgMjguMTI1IDI4LjU0MSAyOS4zNzUgMjguMTI0MyAyOS43OTE2QzI3LjkxNiAzMC4yMDgzIDI3LjQ5OTMgMzAuMjA4MyAyNy4wODI3IDMwQzI1LjYyNDMgMjkuMzc1IDI0LjE2NiAyOC41NDE2IDIyLjkxNiAyNy41QzIxLjg3NDMgMjYuNDU4MyAyMC44MzI3IDI1LjIwODMgMTkuOTk5MyAyMy45NTgzQzE5Ljc5MSAyMy41NDE2IDE5Ljk5OTMgMjMuMTI1IDIwLjIwNzcgMjIuOTE2NkMyMC40MTYgMjIuNzA4MyAyMC42MjQzIDIyLjI5MTYgMjEuMDQxIDIyLjA4MzNDMjEuMjQ5MyAyMS44NzUgMjEuNDU3NyAyMS40NTgzIDIxLjQ1NzcgMjEuMjVDMjEuNjY2IDIxLjA0MTYgMjEuNjY2IDIwLjYyNSAyMS40NTc3IDIwLjQxNjZDMjEuMjQ5MyAyMC4yMDgzIDIwLjIwNzcgMTcuNzA4MyAxOS43OTEgMTYuNjY2NkMxOS41ODI3IDE1LjIwODMgMTkuMTY2IDE1LjIwODMgMTguNzQ5MyAxNS4yMDgzSDE3LjcwNzdDMTcuMjkxIDE1LjIwODMgMTYuNjY2IDE1LjYyNSAxNi40NTc3IDE1LjgzMzNDMTUuMjA3NyAxNy4wODMzIDE0LjU4MjcgMTguNTQxNiAxNC41ODI3IDIwLjIwODNDMTQuNzkxIDIyLjA4MzMgMTUuNDE2IDIzLjk1ODMgMTYuNjY2IDI1LjYyNUMxOC45NTc3IDI4Ljk1ODMgMjEuODc0MyAzMS42NjY2IDI1LjQxNiAzMy4zMzMzQzI2LjQ1NzcgMzMuNzUgMjcuMjkxIDM0LjE2NjYgMjguMzMyNyAzNC4zNzVDMjkuMzc0MyAzNC43OTE2IDMwLjQxNiAzNC43OTE2IDMxLjY2NiAzNC41ODMzQzMzLjEyNDMgMzQuMzc1IDM0LjM3NDMgMzMuMzMzMyAzNS4yMDc3IDMyLjA4MzNDMzUuNjI0MyAzMS4yNSAzNS42MjQzIDMwLjQxNjYgMzUuNDE2IDI5LjU4MzNMMzQuNTgyNyAyOS4xNjY2Wk0zOS43OTEgMTAuMjA4M0MzMS42NjYgMi4wODMzMSAxOC41NDEgMi4wODMzMSAxMC40MTYgMTAuMjA4M0MzLjc0OTM1IDE2Ljg3NSAyLjQ5OTM1IDI3LjA4MzMgNy4wODI2OCAzNS4yMDgzTDQuMTY2MDIgNDUuODMzM0wxNS4yMDc3IDQyLjkxNjZDMTguMzMyNyA0NC41ODMzIDIxLjY2NiA0NS40MTY2IDI0Ljk5OTMgNDUuNDE2NkMzNi40NTc3IDQ1LjQxNjYgNDUuNjI0MyAzNi4yNSA0NS42MjQzIDI0Ljc5MTZDNDUuODMyNyAxOS4zNzUgNDMuNTQxIDE0LjE2NjYgMzkuNzkxIDEwLjIwODNaTTM0LjE2NiAzOS4zNzVDMzEuNDU3NyA0MS4wNDE2IDI4LjMzMjcgNDIuMDgzMyAyNC45OTkzIDQyLjA4MzNDMjEuODc0MyA0Mi4wODMzIDE4Ljk1NzcgNDEuMjUgMTYuMjQ5MyAzOS43OTE2TDE1LjYyNDMgMzkuMzc1TDkuMTY2MDIgNDEuMDQxNkwxMC44MzI3IDM0Ljc5MTZMMTAuNDE2IDM0LjE2NjZDNS40MTYwMiAyNS44MzMzIDcuOTE2MDEgMTUuNDE2NiAxNi4wNDEgMTAuMjA4M0MyNC4xNjYgNC45OTk5OCAzNC41ODI3IDcuNzA4MzEgMzkuNTgyNyAxNS42MjVDNDQuNTgyNyAyMy43NSA0Mi4yOTEgMzQuMzc1IDM0LjE2NiAzOS4zNzVaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4=" width="40" height="40"></a>
-                                    </td>
-                                    <td style="padding: 0 12px;">
-                                        <a href="#"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCA1MCA1MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgIDxwYXRoIGQ9Ik0yNSA1QzEzLjk1NSA1IDUgMTMuOTU1IDUgMjVDNSAzNS4wMjY3IDEyLjM4NjcgNDMuMzA2NyAyMi4wMSA0NC43NTMzVjMwLjNIMTcuMDYxN1YyNS4wNDMzSDIyLjAxVjIxLjU0NUMyMi4wMSAxNS43NTMzIDI0LjgzMTcgMTMuMjExNyAyOS42NDUgMTMuMjExN0MzMS45NSAxMy4yMTE3IDMzLjE3IDEzLjM4MzMgMzMuNzQ2NyAxMy40NlYxOC4wNDgzSDMwLjQ2MzNDMjguNDIgMTguMDQ4MyAyNy43MDY3IDE5Ljk4NjcgMjcuNzA2NyAyMi4xN1YyNS4wNDMzSDMzLjY5NUwzMi44ODMzIDMwLjNIMjcuNzA2N1Y0NC43OTVDMzcuNDY4MyA0My40NzE3IDQ1IDM1LjEyNSA0NSAyNUM0NSAxMy45NTUgMzYuMDQ1IDUgMjUgNVoiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPg==" width="40" height="40"></a>
-                                    </td>
-                                    <td style="padding: 0 12px;">
-                                        <a href="#"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCA1MCA1MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgIDxwYXRoIGQ9Ik0zNi4xMjQ0IDExLjM3NUMzNS42Mjk5IDExLjM3NSAzNS4xNDY1IDExLjUyMTYgMzQuNzM1NCAxMS43OTYzQzM0LjMyNDMgMTIuMDcxMSAzNC4wMDM5IDEyLjQ2MTUgMzMuODE0NyAxMi45MTgzQzMzLjYyNTQgMTMuMzc1MSAzMy41NzU5IDEzLjg3NzggMzMuNjcyNCAxNC4zNjI3QzMzLjc2ODkgMTQuODY3NyAzNC4wMDcgMTUuMjkzMiAzNC4zNTY2IDE1LjY0MjhDMzQuNzA2MiAxNS45OTI0IDM1LjE1MTcgMTYuMjMwNSAzNS42MzY2IDE2LjMyNzBDMzYuMTIxNiAxNi40MjM0IDM2LjYyNDIgMTYuMzczOSAzNy4wODExIDE2LjE4NDdDMzcuNTM3OSAxNS45OTU1IDM3LjkyODMgMTUuNjc1MSAzOC4yMDMgMTUuMjYzOUMzOC40Nzc3IDE0Ljg1MjggMzguNjI0NCAxNC4zNjk1IDM4LjYyNDQgMTMuODc1QzM4LjYyNDQgMTMuMjEyIDM4LjM2MSAxMi41NzYxIDM3Ljg5MjEgMTIuMTA3M0MzNy40MjMzIDExLjYzODQgMzYuNzg3NCAxMS4zNzUgMzYuMTI0NCAxMS4zNzVNNDUuNzA3NyAxNi40MTY3QzQ1LjY2NzIgMTQuNjg4MSA0NS4zNDM0IDEyLjk3NzkgNDQuNzQ5NCAxMS4zNTQyQzQ0LjIxOTYgOS45NjQ4OCA0My4zOTUyIDguNzA2ODUgNDIuMzMyNyA3LjY2NjY5QzQxLjMwMTEgNi41OTg4MiA0MC4wNDAxIDUuNzc5NTUgMzguNjQ1MiA1LjI3MDg1QzM3LjAyNTcgNC42NTg2OSAzNS4zMTM2IDQuMzI3NTQgMzMuNTgyNyA0LjI5MTY5QzMxLjM3NDQgNC4xNjY2OSAzMC42NjYgNC4xNjY2OSAyNC45OTk0IDQuMTY2NjlDMTkuMzMyNyA0LjE2NjY5IDE4LjYyNDQgNC4xNjY2OSAxNi40MTYgNC4yOTE2OUMxNC42ODUxIDQuMzI3NTQgMTIuOTczIDQuNjU4NjkgMTEuMzUzNSA1LjI3MDg1QzkuOTYxMTcgNS43ODQ3IDguNzAxMjkgNi42MDMyNyA3LjY2NjAyIDcuNjY2NjlDNi41OTgxNSA4LjY5ODMxIDUuNzc4ODggOS45NTkyNyA1LjI3MDE4IDExLjM1NDJDNC42NTgwMiAxMi45NzM3IDQuMzI2ODcgMTQuNjg1OCA0LjI5MTAyIDE2LjQxNjdDNC4xNjYwMiAxOC42MjUgNC4xNjYwMiAxOS4zMzM0IDQuMTY2MDIgMjVDNC4xNjYwMiAzMC42NjY3IDQuMTY2MDIgMzEuMzc1IDQuMjkxMDIgMzMuNTgzNEM0LjMyNjg3IDM1LjMxNDMgNC42NTgwMiAzNy4wMjY0IDUuMjcwMTggMzguNjQ1OUM1Ljc3ODg4IDQwLjA0MDggNi41OTgxNSA0MS4zMDE3IDcuNjY2MDIgNDIuMzMzNEM4LjcwMTI5IDQzLjM5NjggOS45NjExNyA0NC4yMTUzIDExLjM1MzUgNDQuNzI5MkMxMi45NzMwIDQ1LjM0MTQgMTQuNjg1MSA0NS42NzI1IDE2LjQxNiA0NS43MDg0QzE4LjYyNDQgNDUuODMzNCAxOS4zMzI3IDQ1LjgzMzQgMjQuOTk5NCA0NS44MzM0QzMwLjY2NiA0NS44MzM0IDMxLjM3NDQgNDUuODMzNCAzMy41ODI3IDQ1LjcwODRDMzUuMzEzNiA0NS42NzI1IDM3LjAyNTcgNDUuMzQxNCAzOC42NDUyIDQ0LjcyOTJDNDAuMDQwMSA0NC4yMjA1IDQxLjMwMTEgNDMuNDAxMiA0Mi4zMzI3IDQyLjMzMzRDNDMuMzk5OSA0MS4yOTcxIDQ0LjIyNTEgNDAuMDM3OSA0NC43NDk0IDM4LjY0NTlDNDUuMzQzNCAzNy4wMjIxIDQ1LjY2NzIgMzUuMzExOSA0NS43MDc3IDMzLjU4MzRDNDUuNzA3NyAzMS4zNzUgNDUuODMyNyAzMC42NjY3IDQ1LjgzMjcgMjVDNDUuODMyNyAxOS4zMzM0IDQ1LjgzMjcgMTguNjI1IDQ1LjcwNzcgMTYuNDE2N000MS45NTc3IDMzLjMzMzRDNDEuOTQyNSAzNC42NTU4IDQxLjcwMyAzNS45NjYxIDQxLjI0OTQgMzcuMjA4NEM0MC45MTY3IDM4LjExNTAgNDAuMzgyNCAzOC45MzQyIDM5LjY4NjkgMzkuNjA0MkMzOS4wMTExIDQwLjI5MjcgMzguMTkzNiA0MC44MjU5IDM3LjI5MTcgNDEuMTY2N0MzNi4wNDg3IDQxLjYyMDMgMzQuNzM4NSA0MS44NTk5IDMzLjQxNiA0MS44NzVDMzEuMzMyNyA0MS45NzkyIDMwLjU2MTkgNDIgMjUuMDgyNyA0MkMxOS42MDM1IDQyIDE4LjgzMjcgNDIgMTYuNzQ5MyA0MS44NzVDMTUuNDI2OCA0MS44NTk5IDE0LjExNjYgNDEuNjIwMyAxMi44NzQzIDQxLjE2NjdDMTEuOTcwNyA0MC44MjY3IDExLjE1MTEgNDAuMjkzMyAxMC40NzYgMzkuNjA0MkM5Ljc4MDIzIDM4LjkzNDIgOS4yNDU5OCAzOC4xMTUwIDguOTE2MDIgMzcuMjA4NEM4LjQ2MjQ0IDM1Ljk2NjEgOC4yMjI4NiAzNC42NTU4IDguMjA3NjkgMzMuMzMzNEM4LjEwMzUyIDMxLjI1IDguMTAzNTIgMzAuNSA4LjEwMzUyIDI1QzguMTAzNTIgMTkuNSA4LjEwMzUyIDE4Ljc1IDguMjA3NjkgMTYuNjY2N0M4LjIyMjg2IDE1LjM0NDIgOC40NjI0NCAxNC4wMzQgOC45MTYwMiAxMi43OTE3QzkuMjQ1OTggMTEuODg1IDkuNzgwMjMgMTEuMDY1OCAxMC40NzYgMTAuMzk1OUMxMS4xNTExIDkuNzA2NzcgMTEuOTcwNyA5LjE3MzM5IDEyLjg3NDMgOC44MzMzNkMxNC4xMTY2IDguMzc5NzcgMTUuNDI2OCA4LjE0MDE5IDE2Ljc0OTMgOC4xMjUwMkMxOC44MzI3IDguMDIwODYgMTkuNjAzNSA4LjAyMDg2IDI1LjA4MjcgOC4wMjA4NkMzMC41NjE5IDguMDIwODYgMzEuMzMyNyA4LjAyMDg2IDMzLjQxNiA4LjEyNTAyQzM0LjczODUgOC4xNDAxOSAzNi4wNDg3IDguMzc5NzcgMzcuMjkxIDguODMzMzZDMzguMTk0NiA5LjE3MzM5IDM5LjAxNDIgOS43MDY3NyAzOS42ODkzIDEwLjM5NTlDNDAuMzg1MSAxMS4wNjU4IDQwLjkxOTMgMTEuODg1IDQxLjI0OTMgMTIuNzkxN0M0MS43MDI5IDE0LjAzNCA0MS45NDI1IDE1LjM0NDIgNDEuOTU3NyAxNi42NjY3QzQyLjA2MTggMTguNzUwIDQyLjA2MTggMTkuNSA0Mi4wNjE4IDI1QzQyLjA2MTggMzAuNSA0Mi4wNjE4IDMxLjI1IDQxLjk1NzcgMzMuMzMzNFoiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPg==" width="40" height="40"></a>
-                                    </td>
-                                    <td style="padding: 0 12px;">
-                                        <a href="#"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCA1MCA1MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgIDxwYXRoIGQ9Ik00My45NTAxIDQzLjMzMzRMMjkuMjkxOCAyMS45NjM0TDI5LjMxNjggMjEuOTgzNEw0Mi41MzM1IDYuNjY2NjlIMzguMTE2OEwyNy4zNTAxIDE5LjEzMzRMMTguODAwMSA2LjY2NjY5SDcuMjE2OEwyMC45MDE4IDI2LjYxODRMMjAuOTAwMSAyNi42MTY3TDYuNDY2OCA0My4zMzM0SDEwLjg4MzVMMjIuODUzNSAyOS40NjM0TDMyLjM2NjggNDMuMzMzNEg0My45NTAxWk0xNy4wNTAxIDEwTDM3LjYxNjggNDBIMzQuMTE2OEwxMy41MzM1IDEwSDE3LjA1MDFaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4=" width="40" height="40"></a>
-                                    </td>
-                                    <td style="padding: 0 12px;">
-                                        <a href="#"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCA1MCA1MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgIDxwYXRoIGQ9Ik00Ny45MTYyIDIwLjIyOTJDNDguMDE5MiAxNy4yNDcyIDQ3LjM2NzEgMTQuMjg3NiA0Ni4wMjAzIDExLjYyNTBDNDUuMTA2NiAxMC41MzI1IDQzLjgzODUgOS43OTUyNiA0Mi40MzcgOS41NDE2OUMzNi42NDAyIDkuMDE1NzEgMzAuODE5MyA4LjgwMDEyIDI0Ljk5OTUgOC44OTU4NkMxOS4yMDA4IDguNzk1NzcgMTMuNDAxIDkuMDA0NDAgNy42MjQ0OSA5LjUyMDg2QzYuNDgyNDQgOS43Mjg2IDUuNDI1NTcgMTAuMjY0MyA0LjU4MjgyIDExLjA2MjVDMi43MDc4MiAxMi43OTE3IDIuNDk5NDkgMTUuNzUwIDIuMjkxMTUgMTguMjUwQzEuOTg4ODkgMjIuNzQ1IDEuOTg4ODkgMjcuMjU1MSAyLjI5MTE1IDMxLjc1MEMyLjM1MTQyIDMzLjE1NzEgMi41NjA5MyAzNC41NTM4IDIuOTE2MTUgMzUuOTE2N0MzLjE2NzM1IDM2Ljk2ODkgMy42NzU1OCAzNy45NDI0IDQuMzk1MzIgMzguNzUwQzUuMjQzNzkgMzkuNTkwNiA2LjMyNTI5IDQwLjE1NjcgNy40OTk0OSA0MC4zNzVDMTEuOTkxIDQwLjkyOTQgMTYuNTE2NiA0MS4xNTkyIDIxLjA0MTIgNDEuMDYyNUMyOC4zMzI4IDQxLjE2NjcgMzQuNzI4NyA0MS4wNjI1IDQyLjI5MTIgNDAuNDc5MkM0My40OTQyIDQwLjI3NDMgNDQuNjA2MSAzOS43MDc0IDQ1LjQ3ODcgMzguODU0MkM0Ni4wNjE5IDM4LjI3MDcgNDYuNDk3NiAzNy41NTY1IDQ2Ljc0OTUgMzYuNzcwOUM0Ny40OTQ1IDM0LjQ4NDYgNDcuODYwNSAzMi4wOTE5IDQ3LjgzMjggMjkuNjg3NUM0Ny45MTYyIDI4LjUyMDkgNDcuOTE2MiAyMS40NzkyIDQ3LjkxNjIgMjAuMjI5MlpNMjAuMjkxMiAzMC45Mzc1VjE4LjA0MTdMMzIuNjI0NSAyNC41MjA5QzI5LjE2NjIgMjYuNDM3NSAyNC42MDM3IDI4LjYwNDIgMjAuMjkxMiAzMC45Mzc1WiIgZmlsbPSJ3aGl0ZSIvPgo8L3N2Zz4=" width="40" height="40"></a>
-                                    </td>
-                                </tr>
-                            </table>
+<table align="center" width="530" cellpadding="0" cellspacing="0" style="background:#0A0132;border-radius:15px;padding:20px 30px;">
+<tr>
+<td align="center">
 
-                        </td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-    </table>
+<!-- White Card -->
+<table width="450" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:15px;overflow:hidden;">
+
+<!-- Purple Header -->
+<tr>
+<td align="center" style="margin-top: 0px; background:#5331EA;padding:25px 0;border-top-left-radius:15px;border-top-right-radius:15px;">
+<img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/logo.png?alt=media" width="140" height="35" style="display:block;">
+</td>
+</tr>
+
+<tr>
+<td style="border-top:1px solid #AEAEAE;"></td>
+</tr>
+
+<!-- Content -->
+<tr>
+<td align="center" style="padding:35px;">
+
+<div style="font-weight:600;font-size:30px;line-height:100%%;color:#000000;">
+Welcome to Ticpin
 </div>
+
+<div style="margin-top:25px;font-weight:500;font-size:25px;line-height:28px;color:#000000;">
+Your OTP for login is
+</div>
+
+<div style="margin-top:15px;font-weight:600;font-size:40px;line-height:50px;color:#000000;letter-spacing:5px;">
+%s
+</div>
+
+<div style="margin-top:25px;font-weight:500;font-size:20px;line-height:22px;color:#000000;">
+This is valid for 5mins
+</div>
+
+</td>
+</tr>
+
+</table>
+
+<!-- Help Section -->
+<table width="450" cellpadding="0" cellspacing="0" style="margin-top:20px;color:#ffffff;">
+<tr>
+<td style="font-weight:600;font-size:30px;line-height:100%%;">
+LOOKING FOR HELP?
+</td>
+</tr>
+
+<tr>
+<td style="padding-top:10px;font-weight:500;font-size:20px;line-height:22px;">
+Mail us at <span style="color:#4EA3FF;">support@ticpin.in</span> (10AM-5PM), and we’ll help you out.
+</td>
+</tr>
+
+<tr>
+<td style="padding-top:12px;">
+<hr style="border:1px solid #ffffff;">
+</td>
+</tr>
+
+<tr>
+<td align="center" style="padding:12px 0;">
+
+<a href="#">
+    <img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/whatsapp.png?alt=media" width="50" height="50" style="display:inline-block;">
+</a>
+<a href="#" style="margin:0 25px;display:inline-block;">
+    <img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/facebook.png?alt=media" width="50" height="50" style="display:inline-block;">
+</a>
+<a href="#">
+    <img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/insta.png?alt=media" width="50" height="50" style="display:inline-block;">
+</a>
+<a href="#" style="margin:0 25px;display:inline-block;">
+    <img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/youtube.png?alt=media" width="50" height="50" style="display:inline-block;">
+</a>
+<a href="#">
+    <img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/tiwteer.png?alt=media" width="50" height="50" style="display:inline-block;">
+</a>
+
+</td>
+
+</tr>
+
+<tr>
+<td>
+<hr style="border:1px solid #ffffff;">
+</td>
+</tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+
+</body>
+</html>
 	`, otp)
+}
+
+// GetPlayBookingEmailTemplate returns the play booking confirmation email HTML
+func GetPlayBookingEmailTemplate(playerName, venueName, sport, date, timeSlot, bookingID string) string {
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Play Booking Confirmed</title>
+<link href="https://fonts.googleapis.com/css2?family=Anek+Latin:wght@500;600&display=swap" rel="stylesheet">
+</head>
+
+<body style="margin:0;padding:40px 20px;background:#f0f0f0;font-family:'Anek Latin', sans-serif;">
+
+<table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#0A0132;border-radius:15px;padding:60px 40px 30px 40px;">
+<tr>
+<td align="center">
+
+<!-- Main Card -->
+<table width="460" cellpadding="0" cellspacing="0" style="background:#EBEBEB;border-radius:15px;overflow:hidden;">
+
+<!-- Header -->
+<tr>
+<td style="background:#5331EA;padding:45px 25px 25px 25px;">
+%s
+</td>
+</tr>
+
+<tr>
+<td style="border-top:1px solid #AEAEAE;"></td>
+</tr>
+
+<!-- Title -->
+<tr>
+<td style="padding:25px 30px 10px 30px;">
+<div style="font-weight:600;font-size:28px;color:#000;">
+Play booking confirmed <span style="color:#0AC655;">&#10004;</span>
+</div>
+<div style="margin-top:10px;font-weight:500;font-size:18px;color:#686868;">
+Booking Date : %s
+</div>
+</td>
+</tr>
+
+<!-- Info Card -->
+<tr>
+<td align="center" style="padding:15px 30px;">
+<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:15px;border-left:5px solid #5331EA;">
+<tr>
+<td style="vertical-align:top;">
+<div style="font-weight:600;font-size:20px;color:#000;">
+%s
+</div>
+<div style="margin-top:5px;font-weight:500;font-size:16px;color:#686868;">
+%s
+</div>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Booking Details -->
+<tr>
+<td align="center" style="padding:0 30px 15px 30px;">
+<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:20px;">
+<tr><td style="font-size:14px;color:#686868;">Booking ID</td></tr>
+<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">#%s</td></tr>
+
+<tr><td style="border-top:1px solid #D9D9D9;"></td></tr>
+
+<tr><td style="font-size:14px;color:#686868;padding-top:12px;">Player Name</td></tr>
+<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">%s</td></tr>
+
+<tr><td style="font-size:14px;color:#686868;">Date &amp; Time</td></tr>
+<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">%s | %s</td></tr>
+
+<tr><td style="font-size:14px;color:#686868;">Status</td></tr>
+<tr><td style="font-size:18px;color:#0AC655;font-weight:600;">Confirmed</td></tr>
+</table>
+</td>
+</tr>
+
+<!-- Notes -->
+<tr>
+<td align="center" style="padding:10px 30px 25px 30px;">
+<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:20px;">
+<tr><td style="font-weight:600;font-size:18px;color:#000;padding-bottom:12px;">Notes</td></tr>
+<tr><td style="font-size:15px;color:#686868;padding-bottom:8px;">&#9670; Please arrive 10 minutes before your slot time.</td></tr>
+<tr><td style="font-size:15px;color:#686868;padding-bottom:8px;">&#9670; Carry a digital copy of this email for entry verification.</td></tr>
+<tr><td style="font-size:15px;color:#686868;padding-top:12px;">See you there! <br> Team <span style="color:#5331EA;font-weight:600;">Ticpin</span></td></tr>
+</table>
+</td>
+</tr>
+</table>
+
+<!-- Footer -->
+%s
+
+</td>
+</tr>
+</table>
+</body>
+</html>
+	`, getEmailLogoSVG(), date, venueName, sport, bookingID, playerName, date, timeSlot, getEmailSocialFooter())
+}
+
+// GetDiningBookingEmailTemplate returns the dining booking confirmation email HTML (matches din.html design)
+func GetDiningBookingEmailTemplate(guestName, restaurantName, date, timeSlot, bookingID string, guestCount int, specialRequest string) string {
+	specialReqHTML := ""
+	if specialRequest != "" {
+		specialReqHTML = fmt.Sprintf(`
+			<tr><td style="font-size:17px;color:#686868;padding-top:15px;">Special Request</td></tr>
+			<tr><td style="font-size:20px;color:#000;font-style:italic;padding-bottom:15px;">"%s"</td></tr>`, specialRequest)
+	}
+
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Table Booking Confirmed</title>
+<link href="https://fonts.googleapis.com/css2?family=Anek+Latin:wght@500;600&display=swap" rel="stylesheet">
+</head>
+
+<body style="margin:0;padding:40px 20px;background:#f0f0f0;font-family:'Anek Latin', sans-serif;">
+
+<table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#0A0132;border-radius:15px;padding:50px 40px 30px 40px;">
+<tr>
+<td align="center">
+
+<!-- Main Container -->
+<table width="460" cellpadding="0" cellspacing="0" style="background:#EBEBEB;border-radius:15px;overflow:hidden;">
+
+<!-- Header -->
+<tr>
+<td style="background:#5331EA;padding:45px 25px 25px 25px;">
+%s
+</td>
+</tr>
+
+<tr>
+<td style="border-top:1px solid #AEAEAE;"></td>
+</tr>
+
+<!-- Title -->
+<tr>
+<td style="padding:25px 30px 10px 30px;">
+<div style="font-weight:600;font-size:28px;color:#000;">
+Table booking confirmed <span style="color:#0AC655;">&#10004;</span>
+</div>
+<div style="margin-top:10px;font-weight:500;font-size:18px;color:#686868;">
+Booking Date : %s
+</div>
+</td>
+</tr>
+
+<!-- Dining Info Card -->
+<tr>
+<td align="center" style="padding:15px 30px;">
+<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:15px;border-left:5px solid #5331EA;">
+<tr>
+<td style="vertical-align:top;">
+<div style="font-weight:600;font-size:20px;color:#000;">
+%s
+</div>
+<div style="margin-top:5px;font-weight:500;font-size:16px;color:#686868;">
+Confirmed Reservation
+</div>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Booking Details -->
+<tr>
+<td align="center" style="padding:0 30px 15px 30px;">
+<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:20px;">
+
+<tr><td style="font-size:14px;color:#686868;">Booking ID</td></tr>
+<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">#%s</td></tr>
+
+<tr><td style="border-top:1px solid #D9D9D9;"></td></tr>
+
+<tr><td style="font-size:14px;color:#686868;padding-top:12px;">Guest Name</td></tr>
+<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">%s</td></tr>
+
+<tr><td style="font-size:14px;color:#686868;">Date &amp; Time</td></tr>
+<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">%s | %s</td></tr>
+
+<tr><td style="font-size:14px;color:#686868;">Number of guest(s)</td></tr>
+<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">%d</td></tr>
+
+%s
+
+<tr><td style="font-size:14px;color:#686868;">Status</td></tr>
+<tr><td style="font-size:18px;color:#0AC655;font-weight:600;">Confirmed</td></tr>
+
+</table>
+</td>
+</tr>
+
+<!-- Notes Section -->
+<tr>
+<td align="center" style="padding:10px 30px 25px 30px;">
+<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:20px;">
+<tr><td style="font-weight:600;font-size:18px;color:#000;padding-bottom:12px;">Notes</td></tr>
+<tr><td style="font-size:15px;color:#686868;padding-bottom:8px;">&#9670; Please arrive 10 minutes before your reserved time.</td></tr>
+<tr><td style="font-size:15px;color:#686868;padding-top:12px;">See you there! <br> Team <span style="color:#5331EA;font-weight:600;">Ticpin</span></td></tr>
+</table>
+</td>
+</tr>
+</table>
+
+<!-- Footer -->
+%s
+
+</td>
+</tr>
+</table>
+</body>
+</html>
+	`, getEmailLogoSVG(), date, restaurantName, bookingID, guestName, date, timeSlot, guestCount, specialReqHTML, getEmailSocialFooter())
+}
+
+// GetEventBookingEmailTemplate returns the event booking confirmation email HTML (matches boook.html design)
+func GetEventBookingEmailTemplate(guestName, eventName, venue, date, time string, ticketCount int, qrImageURL string) string {
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Event Booking Confirmed</title>
+<link href="https://fonts.googleapis.com/css2?family=Anek+Latin:wght@500;600&display=swap" rel="stylesheet">
+</head>
+
+<body style="margin:0;padding:40px 20px;background:#f0f0f0;font-family:'Anek Latin', sans-serif;">
+
+<table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#0A0132;border-radius:15px;padding:60px 40px 30px 40px;">
+<tr>
+<td align="center">
+
+<!-- Main Card -->
+<table width="460" cellpadding="0" cellspacing="0" style="background:#EBEBEB;border-radius:15px;overflow:hidden;">
+
+<!-- Header -->
+<tr>
+<td style="background:#5331EA;padding:45px 25px 25px 25px;">
+%s
+</td>
+</tr>
+
+<tr>
+<td style="border-top:1px solid #AEAEAE;"></td>
+</tr>
+
+<!-- Title -->
+<tr>
+<td style="padding:25px 30px 10px 30px;">
+<div style="font-weight:600;font-size:28px;color:#000;">
+Event booking confirmed <span style="color:#0AC655;">&#10004;</span>
+</div>
+<div style="margin-top:10px;font-weight:500;font-size:18px;color:#686868;">
+Booking Date : %s
+</div>
+</td>
+</tr>
+
+<!-- Event Info Card -->
+<tr>
+<td align="center" style="padding:15px 30px;">
+<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:15px;border-left:5px solid #5331EA;">
+<tr>
+<td style="vertical-align:top;">
+<div style="font-weight:600;font-size:20px;color:#000;">
+%s
+</div>
+<div style="margin-top:5px;font-weight:500;font-size:16px;color:#686868;">
+%s
+</div>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Booking Details -->
+<tr>
+<td align="center" style="padding:0 30px 15px 30px;">
+<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:20px;">
+
+<tr><td style="font-size:14px;color:#686868;">Guest Name</td></tr>
+<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">%s</td></tr>
+
+<tr><td style="font-size:14px;color:#686868;">Date &amp; Time</td></tr>
+<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">%s | %s</td></tr>
+
+<tr><td style="font-size:14px;color:#686868;">Number of ticket(s)</td></tr>
+<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">%d</td></tr>
+
+<tr><td style="font-size:14px;color:#686868;">Status</td></tr>
+<tr><td style="font-size:18px;color:#0AC655;font-weight:600;">Confirmed</td></tr>
+
+</table>
+</td>
+</tr>
+
+<!-- QR Section -->
+<tr>
+<td align="center" style="padding:20px;">
+<div style="width:180px;height:180px;background:rgba(83,49,234,0.15);padding:15px;border-radius:12px;">
+<img src="%s" width="150" style="display:block;margin:0 auto;">
+</div>
+
+<div style="margin-top:15px;font-size:15px;color:#686868;text-align:center;">
+Show this QR code at the venue for entry verification.
+</div>
+</td>
+</tr>
+
+<!-- Notes -->
+<tr>
+<td align="center" style="padding:10px 30px 25px 30px;">
+<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:20px;">
+<tr><td style="font-weight:600;font-size:18px;color:#000;padding-bottom:12px;">Notes</td></tr>
+<tr><td style="font-size:15px;color:#686868;padding-bottom:8px;">&#9670; Please arrive 15 minutes before the event start time.</td></tr>
+<tr><td style="font-size:15px;color:#686868;padding-top:12px;">See you there! <br> Team <span style="color:#5331EA;font-weight:600;">Ticpin</span></td></tr>
+</table>
+</td>
+</tr>
+</table>
+
+<!-- Footer -->
+%s
+
+</td>
+</tr>
+</table>
+</body>
+</html>
+	`, getEmailLogoSVG(), date, eventName, venue, guestName, date, time, ticketCount, qrImageURL, getEmailSocialFooter())
+}
+
+// GetPassPurchaseEmailTemplate returns the pass purchase confirmation email HTML
+func GetPassPurchaseEmailTemplate(name, passID, purchaseDate, expiryDate string, amount int) string {
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Ticpin Pass Purchase Confirmation</title>
+<link href="https://fonts.googleapis.com/css2?family=Anek+Latin:wght@500;600&display=swap" rel="stylesheet">
+</head>
+
+<body style="margin:0;padding:40px 20px;background:#f0f0f0;font-family:'Anek Latin', sans-serif;">
+
+<table align="center" width="530" cellpadding="0" cellspacing="0" style="background:#0A0132;border-radius:15px;padding:20px 30px;">
+<tr>
+<td align="center">
+
+<!-- White Card -->
+<table width="450" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:15px;overflow:hidden;">
+
+<!-- Purple Header -->
+<tr>
+<td align="center" style="background:linear-gradient(135deg, #5331EA 0%%, #E91E63 100%%);padding:40px 0;border-top-left-radius:15px;border-top-right-radius:15px;">
+%s
+<div style="margin-top:15px;font-weight:600;font-size:28px;line-height:100%%;color:#ffffff;">
+🎉 Welcome to Ticpin Pass!
+</div>
+<div style="margin-top:8px;font-weight:500;font-size:18px;line-height:24px;color:#ffffff;">
+Your Premium Membership is Now Active
+</div>
+</td>
+</tr>
+
+<!-- Content -->
+<tr>
+<td style="padding:35px;">
+
+<div style="font-weight:600;font-size:22px;line-height:100%%;color:#000000;">
+Hey %s! 👋
+</div>
+
+<div style="margin-top:12px;font-weight:500;font-size:15px;line-height:22px;color:#686868;">
+Your Ticpin Pass purchase was successful. Get ready to enjoy exclusive benefits on your favorite activities.
+</div>
+
+<!-- Pass Details Card -->
+<table width="100%%" cellpadding="0" cellspacing="0" style="margin:20px 0;background:#f8f4ff;border-radius:10px;padding:20px;border:1px solid #e8dff5;">
+<tr>
+<td style="font-weight:600;font-size:16px;color:#000;padding-bottom:15px;">Pass Details</td>
+</tr>
+<tr>
+<td>
+<table width="100%%" cellpadding="0" cellspacing="0">
+<tr style="border-bottom:1px solid #eee;">
+<td style="padding:10px 0;font-size:14px;color:#686868;">Pass ID</td>
+<td style="padding:10px 0;font-weight:600;color:#000;text-align:right;">%s</td>
+</tr>
+<tr style="border-bottom:1px solid #eee;">
+<td style="padding:10px 0;font-size:14px;color:#686868;">Amount Paid</td>
+<td style="padding:10px 0;font-weight:600;color:#5331EA;text-align:right;">₹%d</td>
+</tr>
+<tr style="border-bottom:1px solid #eee;">
+<td style="padding:10px 0;font-size:14px;color:#686868;">Purchase Date</td>
+<td style="padding:10px 0;font-weight:500;color:#000;text-align:right;">%s</td>
+</tr>
+<tr>
+<td style="padding:10px 0;font-size:14px;color:#686868;">Valid Until</td>
+<td style="padding:10px 0;font-weight:600;color:#E91E63;text-align:right;">%s</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+
+<!-- Benefits Section -->
+<div style="margin-top:20px;">
+<div style="font-weight:600;font-size:16px;color:#000;margin-bottom:12px;">Your Benefits</div>
+<table width="100%%" cellpadding="0" cellspacing="0">
+<tr>
+<td style="width:33%%;padding:10px;vertical-align:top;">
+<table width="100%%" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;padding:12px;border-left:4px solid #5331EA;text-align:center;">
+<tr><td style="font-size:20px;">🎾</td></tr>
+<tr><td style="font-weight:600;font-size:13px;color:#000;margin-top:5px;">2 Free Turf Bookings</td></tr>
+<tr><td style="font-size:11px;color:#999;margin-top:3px;">Valid for 3 months</td></tr>
+</table>
+</td>
+<td style="width:33%%;padding:10px;vertical-align:top;">
+<table width="100%%" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;padding:12px;border-left:4px solid #5331EA;text-align:center;">
+<tr><td style="font-size:20px;">⚡</td></tr>
+<tr><td style="font-weight:600;font-size:13px;color:#000;margin-top:5px;">15%% Discount</td></tr>
+<tr><td style="font-size:11px;color:#999;margin-top:3px;">On all bookings</td></tr>
+</table>
+</td>
+<td style="width:33%%;padding:10px;vertical-align:top;">
+<table width="100%%" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;padding:12px;border-left:4px solid #5331EA;text-align:center;">
+<tr><td style="font-size:20px;">🎯</td></tr>
+<tr><td style="font-weight:600;font-size:13px;color:#000;margin-top:5px;">Priority Support</td></tr>
+<tr><td style="font-size:11px;color:#999;margin-top:3px;">Dedicated help</td></tr>
+</table>
+</td>
+</tr>
+</table>
+</div>
+
+<!-- Reminder -->
+<div style="margin-top:20px;background:#fff3cd;padding:12px;border-radius:5px;border-left:4px solid #FF9800;">
+<div style="font-size:13px;color:#856404;">
+⚠️ <strong>Reminder:</strong> Your pass expires on %s. Renew before expiry to avoid losing your benefits!
+</div>
+</div>
+
+</td>
+</tr>
+
+<!-- Footer -->
+<tr>
+<td align="center" style="padding:20px;border-top:1px solid #eee;">
+<div style="font-size:13px;color:#999;margin-bottom:8px;">
+Questions? <a href="mailto:support@ticpin.com" style="color:#5331EA;text-decoration:none;font-weight:600;">Contact our support team</a>
+</div>
+<div style="font-size:12px;color:#999;">
+© 2026 Ticpin. All rights reserved.
+</div>
+</td>
+</tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+</body>
+</html>
+	`, getEmailLogoSVG(), name, passID, amount, purchaseDate, expiryDate, expiryDate)
 }

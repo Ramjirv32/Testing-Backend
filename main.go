@@ -19,16 +19,15 @@ func main() {
 		JSONEncoder: json.Marshal,
 		JSONDecoder: json.Unmarshal,
 		AppName:     "Website Backend",
-		BodyLimit:   10 * 1024 * 1024, // 10MB
+		BodyLimit:   10 * 1024 * 1024, 
 	})
 
 	config.InitFirebase(cfg)
 	utils.InitEmail(cfg)
 	tasks.StartEmailWorker()
 
-	log.Println("✅ Firebase (Auth, Firestore, Storage) and Email initialized successfully")
+	log.Println(" Firebase (Auth, Firestore, Storage) and Email initialized successfully")
 
-	// Dynamic CORS Middleware - Critical for cross-domain testing with credentials
 	app.Use(func(c fiber.Ctx) error {
 		origin := c.Get("Origin")
 		if origin != "" {
@@ -48,13 +47,12 @@ func main() {
 
 	routes.SetupRoutes(app)
 
-	// Ensure port starts with colon if it's just a number
 	port := cfg.Port
 	if port != "" && port[0] != ':' {
 		port = ":" + port
 	}
 
-	log.Printf("🚀 Server starting on port %s (Environment: %s)\n", port, cfg.Env)
+	log.Printf(" Server starting on port %s (Environment: %s)\n", port, cfg.Env)
 
 	if err := app.Listen(port); err != nil {
 		log.Fatalf("Server failed: %v", err)

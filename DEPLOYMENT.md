@@ -4,48 +4,54 @@
 
 When deploying to Render, set these environment variables in your service settings:
 
-### Required Firebase Variables
+### Required Variables
 
-1. **FIREBASE_PROJECT_ID**
-   ```
-   ticpin-website
-   ```
+1. **ENV**
+   Set to `production`.
 
-2. **FIREBASE_CLIENT_EMAIL**
-   ```
-   firebase-adminsdk-fbsvc@ticpin-website.iam.gserviceaccount.com
-   ```
+2. **PORT**
+   Render sets this automatically, but you can set it to `10000` if needed.
 
-3. **FIREBASE_PRIVATE_KEY**
-   
-   ⚠️ **IMPORTANT**: Copy the entire private key from your service account JSON file INCLUDING the `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----` markers.
-   
-   The key should be in this format (with literal `\n` for newlines):
-   ```
-   -----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDoH4...\n...\n-----END PRIVATE KEY-----\n
-   ```
+3. **FIREBASE_CREDENTIALS**
+   - Open your `ticpin-fa6d2-firebase-adminsdk-fbsvc-53d16fed36.json` file.
+   - Copy the **entire contents** of the JSON file.
+   - Paste it as the value for this environment variable in Render.
+   - This allows the backend to initialize Firebase without needing the physical file in the repository.
 
-   **How to format it correctly:**
-   - Open your `ticpin-website-firebase-adminsdk-fbsvc-79b256dff0.json` file
-   - Copy the ENTIRE value of `private_key` field (including quotes)
-   - Remove the outer quotes
-   - The newlines should be literal `\n` characters (two characters: backslash + n)
-   - Paste it into Render as a single line
+### Third-Party Service Keys
 
-### Optional Email Variables
+4. **GROQ_API_KEY**
+   Your Groq API key for AI features.
 
-4. **DINING_APP_PASSWORD** - Gmail app password for dining@ticpin.in
-5. **EVENTS_APP_PASSWORD** - Gmail app password for events@ticpin.in  
-6. **PLAY_APP_PASSWORD** - Gmail app password for play@ticpin.in
-7. **ADMIN_APP_PASSWORD** - Gmail app password for admin@ticpin.in
+5. **CASHFREE_CLIENT_ID** & **CASHFREE_CLIENT_SECRET**
+   Required for PAN verification and payment features.
 
-### Other Variables
+### Email SMTP Variables (for Booking Confirmations)
 
-8. **PORT** (optional, Render sets this automatically)
-9. **ENV**
-   ```
-   production
-   ```
+6. **PLAY_APP_PASSWORD**, **DINING_APP_PASSWORD**, **EVENTS_APP_PASSWORD**, **ADMIN_APP_PASSWORD**
+   Gmail App Passwords for the respective email accounts.
+
+## Deployment Steps on Render
+
+1. **Create Web Service**: Connect your GitHub repository.
+2. **Runtime**: Select `Go`.
+3. **Build Command**: `go build -o main .`
+4. **Start Command**: `./main`
+5. **Add Environment Variables**: Add all the variables listed above.
+
+## Handle Service Account JSON
+
+You have two options for the Firebase Service Account:
+
+### Option A: Environment Variable (Recommended)
+Add the entire JSON content to a `FIREBASE_CREDENTIALS` environment variable in Render. This is the cleanest way as you don't need to commit the secret file to Git.
+
+### Option B: Secret File
+In Render's "Advanced" or "Environment" tab, use "Secret Files" to upload the `ticpin-fa6d2-firebase-adminsdk-fbsvc-53d16fed36.json` file. 
+
+If you upload it to a different path (e.g., `/etc/secrets/firebase.json`), you MUST set the **`FIREBASE_KEY_PATH`** environment variable to that exact path:
+- **Key**: `FIREBASE_KEY_PATH`
+- **Value**: `/etc/secrets/firebase.json`
 
 ## Verify Deployment
 

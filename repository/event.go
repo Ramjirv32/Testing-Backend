@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -48,18 +49,11 @@ func (r *EventRepository) FindByID(ctx context.Context, id string) (*models.Even
 }
 
 func (r *EventRepository) FindPaginatedByOrganizerID(ctx context.Context, organizerID string, limit int, lastID string) ([]*models.Event, string, error) {
-	q := r.c().Where("organizer_id", "==", organizerID).OrderBy("created_at", firestore.Desc).Limit(limit)
-
-	if lastID != "" {
-		lastDoc, err := r.c().Doc(lastID).Get(ctx)
-		if err == nil {
-			q = q.StartAfter(lastDoc)
-		}
-	}
+	// Fetch all events for this organizer (no OrderBy to avoid composite index requirement)
+	q := r.c().Where("organizer_id", "==", organizerID)
 
 	iter := q.Documents(ctx)
-	events := []*models.Event{}
-	var lastDocID string
+	allEvents := []*models.Event{}
 
 	for {
 		doc, err := iter.Next()
@@ -69,16 +63,41 @@ func (r *EventRepository) FindPaginatedByOrganizerID(ctx context.Context, organi
 		if err != nil {
 			return nil, "", err
 		}
-
 		var e models.Event
 		if err := doc.DataTo(&e); err != nil {
 			continue
 		}
-		events = append(events, &e)
-		lastDocID = doc.Ref.ID
+		allEvents = append(allEvents, &e)
 	}
 
-	return events, lastDocID, nil
+	// Sort by created_at descending in memory
+	sort.Slice(allEvents, func(i, j int) bool {
+		return allEvents[i].CreatedAt.After(allEvents[j].CreatedAt)
+	})
+
+	// Apply cursor-based pagination
+	startIdx := 0
+	if lastID != "" {
+		for i, e := range allEvents {
+			if e.ID == lastID {
+				startIdx = i + 1
+				break
+			}
+		}
+	}
+
+	end := startIdx + limit
+	if end > len(allEvents) {
+		end = len(allEvents)
+	}
+
+	page := allEvents[startIdx:end]
+	nextCursor := ""
+	if len(page) > 0 && end < len(allEvents) {
+		nextCursor = page[len(page)-1].ID
+	}
+
+	return page, nextCursor, nil
 }
 
 func (r *EventRepository) FindByOrganizerID(ctx context.Context, organizerID string) ([]*models.Event, error) {
@@ -86,8 +105,12 @@ func (r *EventRepository) FindByOrganizerID(ctx context.Context, organizerID str
 	return events, err
 }
 
-func (r *EventRepository) GetPaginated(ctx context.Context, limit int, lastID string, category string, city string, searchQuery string) ([]*models.Event, string, error) {
+func (r *EventRepository) GetPaginated(ctx context.Context, limit int, lastID string, category string, city string, searchQuery string, status string) ([]*models.Event, string, error) {
 	q := r.c().Limit(limit)
+
+	if status != "" {
+		q = q.Where("status", "==", status)
+	}
 
 	if category != "" {
 		q = q.Where("category", "==", category)
@@ -97,9 +120,6 @@ func (r *EventRepository) GetPaginated(ctx context.Context, limit int, lastID st
 		q = q.Where("venue.city", "==", city)
 	}
 
-	// Removed OrderBy to avoid index requirement for simple city/category filters
-	// q = q.OrderBy("created_at", firestore.Desc)
-
 	if lastID != "" {
 		lastDoc, err := r.c().Doc(lastID).Get(ctx)
 		if err == nil {
@@ -131,8 +151,8 @@ func (r *EventRepository) GetPaginated(ctx context.Context, limit int, lastID st
 	return events, lastDocID, nil
 }
 
-func (r *EventRepository) GetAll(ctx context.Context) ([]*models.Event, error) {
-	events, _, err := r.GetPaginated(ctx, 100, "", "", "", "")
+func (r *EventRepository) GetAll(ctx context.Context, status string) ([]*models.Event, error) {
+	events, _, err := r.GetPaginated(ctx, 100, "", "", "", "", status)
 	return events, err
 }
 

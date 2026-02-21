@@ -19,10 +19,22 @@ type EventImages struct {
 }
 
 type EventArtist struct {
-	Name        string `json:"name" firestore:"name"`
-	Role        string `json:"role" firestore:"role"`
-	ImageURL    string `json:"image_url" firestore:"image_url"`
-	Description string `json:"description" firestore:"description"`
+	Name            string   `json:"name" firestore:"name"`
+	Role            string   `json:"role" firestore:"role"`
+	ImageURL        string   `json:"image_url" firestore:"image_url"`
+	Description     string   `json:"description" firestore:"description"`
+	Genre           string   `json:"genre" firestore:"genre"`
+	IsVerified      bool     `json:"is_verified" firestore:"is_verified"`
+	Rating          float64  `json:"rating" firestore:"rating"`
+	ReviewCount     int      `json:"review_count" firestore:"review_count"`
+	EventsHosted    int      `json:"events_hosted" firestore:"events_hosted"`
+	Location        string   `json:"location" firestore:"location"`
+	ContactEmail    string   `json:"contact_email" firestore:"contact_email"`
+	ContactPhone    string   `json:"contact_phone" firestore:"contact_phone"`
+	ExperienceYears int      `json:"experience_years" firestore:"experience_years"`
+	Specialties     []string `json:"specialties" firestore:"specialties"`
+	FollowerCount   int      `json:"follower_count" firestore:"follower_count"`
+	SocialLinks     []string `json:"social_links" firestore:"social_links"`
 }
 
 type EventTicket struct {
@@ -40,7 +52,7 @@ type EventFAQ struct {
 
 type Event struct {
 	ID                 string        `json:"id" firestore:"id"`
-	OrganizerID        string        `json:"organizer_id" firestore:"organizer_id"` // UserID of the poster
+	OrganizerID        string        `json:"organizer_id" firestore:"organizer_id"`
 	Title              string        `json:"title" firestore:"title"`
 	Slug               string        `json:"slug" firestore:"slug"`
 	Category           string        `json:"category" firestore:"category"`
@@ -52,7 +64,8 @@ type Event struct {
 	StartDatetime      time.Time     `json:"start_datetime" firestore:"start_datetime"`
 	EndDatetime        time.Time     `json:"end_datetime" firestore:"end_datetime"`
 	PriceStart         float64       `json:"price_start" firestore:"price_start"`
-	Status             string        `json:"status" firestore:"status"` // active, inactive, draft
+	Status             string        `json:"status" firestore:"status"`
+	RejectionReason    string        `json:"rejection_reason" firestore:"rejection_reason"`
 	Venue              EventVenue    `json:"venue" firestore:"venue"`
 	Images             EventImages   `json:"images" firestore:"images"`
 	Artists            []EventArtist `json:"artists" firestore:"artists"`

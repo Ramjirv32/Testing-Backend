@@ -35,19 +35,21 @@ func (r *PlayRepository) Create(ctx context.Context, p *models.PlayVenue) error 
 	return err
 }
 
-func (r *PlayRepository) GetPaginated(ctx context.Context, limit int, lastID string, category string, city string, searchQuery string) ([]*models.PlayVenue, string, error) {
+func (r *PlayRepository) GetPaginated(ctx context.Context, limit int, lastID string, category string, city string, searchQuery string, status string) ([]*models.PlayVenue, string, error) {
 	q := r.c().Limit(limit)
 
+	if status != "" {
+		q = q.Where("status", "==", status)
+	}
+
 	if category != "" {
-		q = q.Where("category", "==", category)
+		// Filter by sports array field using array-contains
+		q = q.Where("sports", "array-contains", category)
 	}
 
 	if city != "" {
 		q = q.Where("location.city", "==", city)
 	}
-
-	// Removed OrderBy to avoid index requirement for simple city/category filters
-	// q = q.OrderBy("created_at", firestore.Desc)
 
 	if lastID != "" {
 		lastDoc, err := r.c().Doc(lastID).Get(ctx)
@@ -81,7 +83,7 @@ func (r *PlayRepository) GetPaginated(ctx context.Context, limit int, lastID str
 }
 
 func (r *PlayRepository) GetAll(ctx context.Context) ([]*models.PlayVenue, error) {
-	venues, _, err := r.GetPaginated(ctx, 100, "", "", "", "")
+	venues, _, err := r.GetPaginated(ctx, 100, "", "", "", "", "")
 	return venues, err
 }
 
@@ -132,7 +134,7 @@ func (r *PlayRepository) Delete(ctx context.Context, id string) error {
 }
 
 func (r *PlayRepository) FindPaginatedByOrganizerID(ctx context.Context, organizerID string, limit int, lastID string) ([]*models.PlayVenue, string, error) {
-	q := r.c().Where("organizer_id", "==", organizerID).OrderBy("created_at", firestore.Desc).Limit(limit)
+	q := r.c().Where("organizer_id", "==", organizerID).Limit(limit)
 
 	if lastID != "" {
 		lastDoc, err := r.c().Doc(lastID).Get(ctx)

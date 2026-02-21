@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	cloud.google.com/go/firestore v1.21.0
+	cloud.google.com/go/storage v1.56.0
 	firebase.google.com/go/v4 v4.12.0
 	github.com/goccy/go-json v0.10.2
 	github.com/gofiber/fiber/v3 v3.0.0
@@ -23,7 +24,6 @@ require (
 	cloud.google.com/go/iam v1.5.2 // indirect
 	cloud.google.com/go/longrunning v0.7.0 // indirect
 	cloud.google.com/go/monitoring v1.24.2 // indirect
-	cloud.google.com/go/storage v1.56.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.29.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.53.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.53.0 // indirect

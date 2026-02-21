@@ -51,8 +51,62 @@ func (r *PartnerRepository) FindByUserIDAndCategory(ctx context.Context, userID 
 	return &ep, nil
 }
 
+func (r *PartnerRepository) FindByPAN(ctx context.Context, pan string) (*models.PartnerProfile, error) {
+	iter := r.c().Where("organization_details.pan", "==", pan).Limit(1).Documents(ctx)
+	doc, err := iter.Next()
+	if err == iterator.Done {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query partner by PAN: %w", err)
+	}
+
+	var ep models.PartnerProfile
+	if err := doc.DataTo(&ep); err != nil {
+		return nil, fmt.Errorf("failed to parse partner data: %w", err)
+	}
+	return &ep, nil
+}
+
+func (r *PartnerRepository) FindByBankAccountNumber(ctx context.Context, accountNumber string) (*models.PartnerProfile, error) {
+	iter := r.c().Where("bank_details.account_number", "==", accountNumber).Limit(1).Documents(ctx)
+	doc, err := iter.Next()
+	if err == iterator.Done {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query partner by bank account number: %w", err)
+	}
+
+	var ep models.PartnerProfile
+	if err := doc.DataTo(&ep); err != nil {
+		return nil, fmt.Errorf("failed to parse partner data: %w", err)
+	}
+	return &ep, nil
+}
+
 func (r *PartnerRepository) FindByUserID(ctx context.Context, userID string) (*models.PartnerProfile, error) {
 	return r.FindByUserIDAndCategory(ctx, userID, "")
+}
+
+func (r *PartnerRepository) FindAllByUserID(ctx context.Context, userID string) ([]*models.PartnerProfile, error) {
+	iter := r.c().Where("user_id", "==", userID).Documents(ctx)
+	var profiles []*models.PartnerProfile
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to query partners by user ID: %w", err)
+		}
+		var ep models.PartnerProfile
+		if err := doc.DataTo(&ep); err != nil {
+			continue
+		}
+		profiles = append(profiles, &ep)
+	}
+	return profiles, nil
 }
 
 func (r *PartnerRepository) FindByID(ctx context.Context, id string) (*models.PartnerProfile, error) {
@@ -72,15 +126,21 @@ func (r *PartnerRepository) FindByID(ctx context.Context, id string) (*models.Pa
 	return &ep, nil
 }
 
-func (r *PartnerRepository) GetPaginated(ctx context.Context, limit int, lastID string, category string) ([]*models.PartnerProfile, string, error) {
+func (r *PartnerRepository) GetPaginated(ctx context.Context, limit int, lastID string, category string, status string) ([]*models.PartnerProfile, string, error) {
 	var q firestore.Query
 
+	q = r.c().Query
+
 	if category != "" && category != "all" {
-		// When filtering by category, we skip OrderBy to avoid requiring a composite index
-		// Note: Using capitalized 'Category' to match existing data stored without firestore tags
-		q = r.c().Where("organization_details.category", "==", category)
-	} else {
-		q = r.c().OrderBy("created_at", firestore.Desc)
+		q = q.Where("organization_details.category", "==", category)
+	}
+
+	if status != "" && status != "all" {
+		q = q.Where("status", "==", status)
+	}
+
+	if category == "" && status == "" {
+		q = q.OrderBy("created_at", firestore.Desc)
 	}
 
 	q = q.Limit(limit)
@@ -117,8 +177,8 @@ func (r *PartnerRepository) GetPaginated(ctx context.Context, limit int, lastID 
 }
 
 func (r *PartnerRepository) GetAll(ctx context.Context) ([]*models.PartnerProfile, error) {
-	// For enterprise scale, we limit GetAll to a reasonable default or use GetPaginated
-	posters, _, err := r.GetPaginated(ctx, 100, "", "")
+
+	posters, _, err := r.GetPaginated(ctx, 100, "", "", "")
 	return posters, err
 }
 

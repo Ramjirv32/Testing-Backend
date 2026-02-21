@@ -27,6 +27,9 @@ func NewUserRepository() *UserRepository {
 
 func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	_, err := r.c().Doc(user.ID).Set(ctx, user)
+	if err != nil {
+		fmt.Printf(" Firestore Create Error [ID: %s]: %v\n", user.ID, err)
+	}
 	return err
 }
 

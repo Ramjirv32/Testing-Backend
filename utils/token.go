@@ -10,7 +10,8 @@ import (
 func GenerateToken(userID string, isAdmin bool) string {
 	randomBytes := make([]byte, 32)
 	rand.Read(randomBytes)
-	token := base64.URLEncoding.EncodeToString(randomBytes)
+	// Use StdEncoding (no _ chars) so token splitting on "_" is unambiguous
+	token := base64.StdEncoding.EncodeToString(randomBytes)
 
 	prefix := "user"
 	if isAdmin {
@@ -20,12 +21,20 @@ func GenerateToken(userID string, isAdmin bool) string {
 	return fmt.Sprintf("%s_%s_%s", prefix, userID, token)
 }
 
+// ValidateToken parses a token and returns (userID, isAdminPrefix, error).
+// SplitN(3) ensures the base64 segment (which may contain "=") is kept intact.
 func ValidateToken(token string) (string, bool, error) {
-	parts := strings.Split(token, "_")
-	if len(parts) < 2 {
+	parts := strings.SplitN(token, "_", 3)
+	if len(parts) < 3 {
 		return "", false, fmt.Errorf("invalid token format")
 	}
+	prefix := parts[0]
 	userID := parts[1]
-	isAdmin := parts[0] == "admin"
-	return userID, isAdmin, nil
+	if prefix != "user" && prefix != "admin" {
+		return "", false, fmt.Errorf("unknown token prefix")
+	}
+	if userID == "" {
+		return "", false, fmt.Errorf("empty user ID in token")
+	}
+	return userID, prefix == "admin", nil
 }

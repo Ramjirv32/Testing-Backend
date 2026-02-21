@@ -35,8 +35,12 @@ func (r *DiningRepository) Create(ctx context.Context, d *models.DiningVenue) er
 	return err
 }
 
-func (r *DiningRepository) GetPaginated(ctx context.Context, limit int, lastID string, category string, city string, searchQuery string) ([]*models.DiningVenue, string, error) {
+func (r *DiningRepository) GetPaginated(ctx context.Context, limit int, lastID string, category string, city string, searchQuery string, status string) ([]*models.DiningVenue, string, error) {
 	q := r.c().Limit(limit)
+
+	if status != "" {
+		q = q.Where("status", "==", status)
+	}
 
 	if category != "" {
 		q = q.Where("category", "==", category)
@@ -45,9 +49,6 @@ func (r *DiningRepository) GetPaginated(ctx context.Context, limit int, lastID s
 	if city != "" {
 		q = q.Where("location.city", "==", city)
 	}
-
-	// Removed OrderBy to avoid index requirement for simple city/category filters
-	// q = q.OrderBy("created_at", firestore.Desc)
 
 	if lastID != "" {
 		lastDoc, err := r.c().Doc(lastID).Get(ctx)
@@ -81,7 +82,7 @@ func (r *DiningRepository) GetPaginated(ctx context.Context, limit int, lastID s
 }
 
 func (r *DiningRepository) GetAll(ctx context.Context) ([]*models.DiningVenue, error) {
-	venues, _, err := r.GetPaginated(ctx, 100, "", "", "", "")
+	venues, _, err := r.GetPaginated(ctx, 100, "", "", "", "", "")
 	return venues, err
 }
 
@@ -132,7 +133,7 @@ func (r *DiningRepository) Delete(ctx context.Context, id string) error {
 }
 
 func (r *DiningRepository) FindPaginatedByOrganizerID(ctx context.Context, organizerID string, limit int, lastID string) ([]*models.DiningVenue, string, error) {
-	q := r.c().Where("organizer_id", "==", organizerID).OrderBy("created_at", firestore.Desc).Limit(limit)
+	q := r.c().Where("organizer_id", "==", organizerID).Limit(limit)
 
 	if lastID != "" {
 		lastDoc, err := r.c().Doc(lastID).Get(ctx)

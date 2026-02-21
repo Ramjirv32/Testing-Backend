@@ -2,6 +2,10 @@
 
 # Binary files
 server
+main
+backend
+*.log
+*.json
 
 # Environment files
 .env
