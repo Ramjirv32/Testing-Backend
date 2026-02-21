@@ -589,27 +589,29 @@ func GetGSTINsFromPAN(c fiber.Ctx) error {
 	}
 
 	type gstinReqBody struct {
-		PAN string `json:"pan"`
+		PAN            string `json:"pan"`
+		VerificationID string `json:"verification_id"`
 	}
 	type gstinEntry struct {
 		GSTIN  string `json:"gstin"`
 		Status string `json:"status"`
 		State  string `json:"state"`
 	}
-	type gstinRespData struct {
-		GSTINList []gstinEntry `json:"gstin_list"`
-	}
+	// Cashfree PAN-GSTIN response is FLAT — gstin_list is top-level, not nested
 	type cashfreeGSTINResp struct {
-		Status         string        `json:"status"`
-		Message        interface{}   `json:"message"`
-		ReferenceID    int           `json:"reference_id"`
-		VerificationID string        `json:"verification_id"`
-		PAN            string        `json:"pan"`
-		Data           gstinRespData `json:"data"`
+		Status         string       `json:"status"`
+		Message        interface{}  `json:"message"`
+		ReferenceID    int          `json:"reference_id"`
+		VerificationID string       `json:"verification_id"`
+		PAN            string       `json:"pan"`
+		GSTINList      []gstinEntry `json:"gstin_list"`
 	}
 
 	panForGSTIN := strings.ToUpper(strings.TrimSpace(pr.PAN))
-	gstinBodyBytes, _ := json.Marshal(gstinReqBody{PAN: panForGSTIN})
+	gstinBodyBytes, _ := json.Marshal(gstinReqBody{
+		PAN:            panForGSTIN,
+		VerificationID: utils.GenerateUUIDv7(),
+	})
 
 	gstinHTTPReq, err := http.NewRequestWithContext(c.Context(), "POST", gstinCfg.CashfreePANGSTINURL, bytes.NewReader(gstinBodyBytes))
 	if err != nil {
@@ -635,7 +637,7 @@ func GetGSTINsFromPAN(c fiber.Ctx) error {
 	}
 
 	gstinList := []interface{}{}
-	for _, g := range gstinCFResp.Data.GSTINList {
+	for _, g := range gstinCFResp.GSTINList {
 		gstinList = append(gstinList, map[string]interface{}{
 			"gstin":  g.GSTIN,
 			"status": g.Status,
@@ -655,7 +657,7 @@ func GetGSTINsFromPAN(c fiber.Ctx) error {
 		UserID:    userID,
 		Action:    "GSTIN_VERIFICATION",
 		Status:    "SUCCESS",
-		Details:   fmt.Sprintf("GSTIN lookup for PAN %s returned %d result(s)", panForGSTIN, len(gstinCFResp.Data.GSTINList)),
+		Details:   fmt.Sprintf("GSTIN lookup for PAN %s returned %d result(s)", panForGSTIN, len(gstinCFResp.GSTINList)),
 		IPAddress: c.IP(),
 	})
 
