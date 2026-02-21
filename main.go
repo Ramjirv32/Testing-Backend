@@ -5,6 +5,7 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
+	"github.com/joho/godotenv"
 
 	"backend/config"
 	"backend/routes"
@@ -13,13 +14,16 @@ import (
 )
 
 func main() {
+	// Load .env for local development (silently ignored if file missing)
+	_ = godotenv.Load()
+
 	cfg := config.LoadConfig()
 
 	app := fiber.New(fiber.Config{
 		JSONEncoder: json.Marshal,
 		JSONDecoder: json.Unmarshal,
 		AppName:     "Website Backend",
-		BodyLimit:   10 * 1024 * 1024, 
+		BodyLimit:   10 * 1024 * 1024,
 	})
 
 	config.InitFirebase(cfg)
