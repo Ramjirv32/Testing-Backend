@@ -389,32 +389,35 @@ func VerifyPAN(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 500, "PAN verification service not configured. Please contact support.")
 	}
 
+	// PAN Lite API request — verification_id is mandatory
 	type cashfreePANReq struct {
-		PAN string `json:"pan"`
+		VerificationID string `json:"verification_id"`
+		PAN            string `json:"pan"`
+		Name           string `json:"name"`
+		DOB            string `json:"dob,omitempty"`
 	}
-	type cashfreePANData struct {
-		PAN                      string `json:"pan"`
-		PANStatus                string `json:"pan_status"`
-		RegisteredName           string `json:"registered_name"`
-		NamePANCard              string `json:"name_pan_card"`
-		Type                     string `json:"type"`
-		AadhaarSeedingStatus     string `json:"aadhaar_seeding_status"`
-		AadhaarSeedingStatusDesc string `json:"aadhaar_seeding_status_desc"`
-		FirstName                string `json:"first_name"`
-		LastName                 string `json:"last_name"`
-		Gender                   string `json:"gender"`
-		DOB                      string `json:"dob"`
-	}
+	// PAN Lite response is flat (no nested data object)
 	type cashfreePANResp struct {
-		Status         string          `json:"status"`
-		Message        interface{}     `json:"message"`
-		Data           cashfreePANData `json:"data"`
-		VerificationID string          `json:"verification_id"`
-		ReferenceID    int             `json:"reference_id"`
+		Status                   string      `json:"status"`
+		Message                  interface{} `json:"message"`
+		VerificationID           string      `json:"verification_id"`
+		ReferenceID              int         `json:"reference_id"`
+		PAN                      string      `json:"pan"`
+		PANStatus                string      `json:"pan_status"`
+		NameMatch                string      `json:"name_match"`
+		DOBMatch                 string      `json:"dob_match"`
+		DOB                      string      `json:"dob"`
+		AadhaarSeedingStatus     string      `json:"aadhaar_seeding_status"`
+		AadhaarSeedingStatusDesc string      `json:"aadhaar_seeding_status_desc"`
 	}
 
-	// panUpper already computed above
-	cfReqBody, _ := json.Marshal(cashfreePANReq{PAN: panUpper})
+	// panUpper already computed above; use UUID as verification_id
+	cfReqBody, _ := json.Marshal(cashfreePANReq{
+		VerificationID: utils.GenerateUUIDv7(),
+		PAN:            panUpper,
+		Name:           pr.Name,
+		DOB:            pr.DOB,
+	})
 
 	httpReq, err := http.NewRequestWithContext(c.Context(), "POST", cfg.CashfreePANURL, bytes.NewReader(cfReqBody))
 	if err != nil {
@@ -439,7 +442,8 @@ func VerifyPAN(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 502, "Invalid response from PAN verification service")
 	}
 
-	if cfResp.Status != "SUCCESS" {
+	// PAN Lite returns "VALID" on success (not "SUCCESS")
+	if cfResp.Status != "VALID" {
 		msg := "PAN verification failed"
 		if cfResp.Message != nil {
 			if s, ok := cfResp.Message.(string); ok && s != "" {
@@ -450,53 +454,47 @@ func VerifyPAN(c fiber.Ctx) error {
 			UserID:    userID,
 			Action:    "PAN_VERIFICATION",
 			Status:    "FAILED",
-			Details:   fmt.Sprintf("Cashfree rejected PAN %s: %s", pr.PAN, msg),
+			Details:   fmt.Sprintf("Cashfree rejected PAN %s: status=%s msg=%s", panUpper, cfResp.Status, msg),
 			IPAddress: c.IP(),
 		})
 		return utils.ErrorResponse(c, 400, "PAN verification failed: "+msg)
 	}
 
-	// pan_status "E" = Existing (valid), "I" = Invalid
-	if cfResp.Data.PANStatus != "E" {
+	// pan_status "E" = Existing (valid/active), "I" = Invalid
+	if cfResp.PANStatus != "E" {
 		auditRepo.Log(c.Context(), &models.AuditLog{
 			UserID:    userID,
 			Action:    "PAN_VERIFICATION",
 			Status:    "FAILED",
-			Details:   fmt.Sprintf("PAN %s invalid or inactive (status: %s)", pr.PAN, cfResp.Data.PANStatus),
+			Details:   fmt.Sprintf("PAN %s invalid or inactive (pan_status: %s)", panUpper, cfResp.PANStatus),
 			IPAddress: c.IP(),
 		})
-		return utils.ErrorResponse(c, 400, fmt.Sprintf("PAN is invalid or inactive (status: %s). Please provide a valid PAN.", cfResp.Data.PANStatus))
+		return utils.ErrorResponse(c, 400, fmt.Sprintf("PAN is invalid or inactive (status: %s). Please provide a valid active PAN.", cfResp.PANStatus))
 	}
 
-	// Name match — compare provided name with registered name on PAN
-	registeredName := strings.ToLower(strings.TrimSpace(cfResp.Data.RegisteredName))
-	providedName := strings.ToLower(strings.TrimSpace(pr.Name))
-	nameMatch := "N"
-	if registeredName != "" && providedName != "" {
-		rNorm := strings.ReplaceAll(registeredName, " ", "")
-		pNorm := strings.ReplaceAll(providedName, " ", "")
-		if rNorm == pNorm || strings.Contains(registeredName, providedName) || strings.Contains(providedName, registeredName) {
-			nameMatch = "Y"
-		}
+	// Use name_match returned by Cashfree directly
+	nameMatch := cfResp.NameMatch
+	if nameMatch == "" {
+		nameMatch = "N"
 	}
 
 	panVerification := models.PANVerification{
 		Status:                   "VALID",
 		ReferenceID:              cfResp.ReferenceID,
 		VerificationID:           cfResp.VerificationID,
-		RegisteredName:           cfResp.Data.RegisteredName,
-		NamePanCard:              cfResp.Data.NamePANCard,
+		RegisteredName:           pr.Name, // PAN Lite does not return registered name; store provided name
+		NamePanCard:              "",
 		NameProvided:             pr.Name,
 		NameMatch:                nameMatch,
-		PanStatus:                cfResp.Data.PANStatus,
-		DOB:                      cfResp.Data.DOB,
-		DOBMatch:                 "N", // PAN Lite does not verify DOB
-		Type:                     cfResp.Data.Type,
-		Gender:                   cfResp.Data.Gender,
-		FirstName:                cfResp.Data.FirstName,
-		LastName:                 cfResp.Data.LastName,
-		AadhaarSeedingStatus:     cfResp.Data.AadhaarSeedingStatus,
-		AadhaarSeedingStatusDesc: cfResp.Data.AadhaarSeedingStatusDesc,
+		PanStatus:                cfResp.PANStatus,
+		DOB:                      cfResp.DOB,
+		DOBMatch:                 cfResp.DOBMatch,
+		Type:                     "",
+		Gender:                   "",
+		FirstName:                "",
+		LastName:                 "",
+		AadhaarSeedingStatus:     cfResp.AadhaarSeedingStatus,
+		AadhaarSeedingStatusDesc: cfResp.AadhaarSeedingStatusDesc,
 		VerifiedAt:               time.Now(),
 	}
 
@@ -522,7 +520,7 @@ func VerifyPAN(c fiber.Ctx) error {
 		UserID:    userID,
 		Action:    "PAN_VERIFICATION",
 		Status:    "SUCCESS",
-		Details:   fmt.Sprintf("PAN %s verified successfully for %s (name_match=%s)", panUpper, cfResp.Data.RegisteredName, nameMatch),
+		Details:   fmt.Sprintf("PAN %s verified successfully (name_match=%s)", panUpper, nameMatch),
 		IPAddress: c.IP(),
 	})
 
