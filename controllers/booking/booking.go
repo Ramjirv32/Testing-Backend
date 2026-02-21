@@ -109,14 +109,11 @@ func CreateDiningBooking(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 404, "Restaurant not found")
 	}
 
-	
 	organizer, _ := userRepo.FindByID(c.Context(), restaurant.OrganizerID)
 	organizerEmail := ""
 	if organizer != nil {
 		organizerEmail = organizer.Email
 	}
-
-
 
 	bookingID := utils.GenerateUUIDv7()
 	seqID := utils.GetNextSeqID()
@@ -228,6 +225,7 @@ func CreateEventBooking(c fiber.Ctx) error {
 		eventTime,
 		booking.Quantity,
 		"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data="+booking.ID,
+		booking.ID,
 	)
 	go func() {
 		utils.SendEmail(utils.EmailEvents, booking.BillingEmail, "Tickets Confirmed - "+booking.EventTitle, emailBody)
@@ -320,7 +318,10 @@ func CancelBooking(c fiber.Ctx) error {
 			return utils.ErrorResponse(c, 403, "Unauthorized")
 		}
 		booking.Status = models.BookingCancelled
-		playBookingRepo.Update(c.Context(), booking)
+		booking.UpdatedAt = time.Now()
+		if err := playBookingRepo.Update(c.Context(), booking); err != nil {
+			return utils.ErrorResponse(c, 500, "Failed to cancel booking")
+		}
 		return utils.SuccessResponse(c, 200, "Booking cancelled", booking)
 	} else if bookingType == "dining" {
 		booking, err := diningBookingRepo.FindByID(c.Context(), bookingID)
@@ -331,7 +332,10 @@ func CancelBooking(c fiber.Ctx) error {
 			return utils.ErrorResponse(c, 403, "Unauthorized")
 		}
 		booking.Status = models.BookingCancelled
-		diningBookingRepo.Update(c.Context(), booking)
+		booking.UpdatedAt = time.Now()
+		if err := diningBookingRepo.Update(c.Context(), booking); err != nil {
+			return utils.ErrorResponse(c, 500, "Failed to cancel booking")
+		}
 		return utils.SuccessResponse(c, 200, "Booking cancelled", booking)
 	} else {
 		booking, err := eventBookingRepo.FindByID(c.Context(), bookingID)
@@ -342,7 +346,10 @@ func CancelBooking(c fiber.Ctx) error {
 			return utils.ErrorResponse(c, 403, "Unauthorized")
 		}
 		booking.Status = models.BookingCancelled
-		eventBookingRepo.Update(c.Context(), booking)
+		booking.UpdatedAt = time.Now()
+		if err := eventBookingRepo.Update(c.Context(), booking); err != nil {
+			return utils.ErrorResponse(c, 500, "Failed to cancel booking")
+		}
 		return utils.SuccessResponse(c, 200, "Booking cancelled", booking)
 	}
 }

@@ -1,7 +1,6 @@
 package user
 
 import (
-	"context"
 	"time"
 
 	"firebase.google.com/go/v4/auth"
@@ -25,20 +24,19 @@ func GetAllUsers(c fiber.Ctx) error {
 
 func GetUserByID(c fiber.Ctx) error {
 	userID := c.Params("id")
+	if userID == "" {
+		return utils.ErrorResponse(c, 400, "User ID is required")
+	}
 
-	user := &models.User{
-		ID:        userID,
-		Email:     "user@example.com",
-		Name:      "John Doe",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+	user, err := userRepo.FindByID(c.Context(), userID)
+	if err != nil || user == nil {
+		return utils.ErrorResponse(c, 404, "User not found")
 	}
 
 	return utils.SuccessResponse(c, 200, "User fetched", user)
 }
 
 func CreateUser(c fiber.Ctx) error {
-	ctx := context.Background()
 	var req models.CreateUserRequest
 
 	if err := c.Bind().Body(&req); err != nil {
@@ -56,7 +54,7 @@ func CreateUser(c fiber.Ctx) error {
 		DisplayName(req.Name).
 		UID(uuidv7)
 
-	record, err := config.FirebaseAuth.CreateUser(ctx, params)
+	record, err := config.FirebaseAuth.CreateUser(c.Context(), params)
 	if err != nil {
 		return utils.ErrorResponse(c, 400, "Failed to create user")
 	}
@@ -71,6 +69,10 @@ func CreateUser(c fiber.Ctx) error {
 		Phone:     req.Phone,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
+	}
+
+	if err := userRepo.Create(c.Context(), user); err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to save user")
 	}
 
 	return utils.SuccessResponse(c, 201, "User created successfully", user)
@@ -88,12 +90,24 @@ func UpdateUser(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 400, "User ID is required")
 	}
 
-	user := &models.User{
-		ID:        userID,
-		Name:      req.Name,
-		Phone:     req.Phone,
-		Avatar:    req.Avatar,
-		UpdatedAt: time.Now(),
+	user, err := userRepo.FindByID(c.Context(), userID)
+	if err != nil || user == nil {
+		return utils.ErrorResponse(c, 404, "User not found")
+	}
+
+	if req.Name != "" {
+		user.Name = req.Name
+	}
+	if req.Phone != "" {
+		user.Phone = req.Phone
+	}
+	if req.Avatar != "" {
+		user.Avatar = req.Avatar
+	}
+	user.UpdatedAt = time.Now()
+
+	if err := userRepo.Update(c.Context(), user); err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to update user")
 	}
 
 	return utils.SuccessResponse(c, 200, "User updated successfully", user)

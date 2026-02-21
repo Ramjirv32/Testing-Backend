@@ -5,7 +5,6 @@ import (
 	"backend/models"
 	"backend/utils"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -48,19 +47,21 @@ func OrganizerRegister(c fiber.Ctx) error {
 		UpdatedAt:       time.Now(),
 	}
 
-	if err := userRepo.Update(c.Context(), user); err != nil {
-		// user already exists check was done above, but just in case
-	}
-
 	if err := userRepo.Create(c.Context(), user); err != nil {
 		return utils.ErrorResponse(c, 500, "Failed to create account")
 	}
 
-	otp := fmt.Sprintf("%06d", rand.Intn(1000000))
+	otp, err := generateSecureOTP()
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to generate OTP")
+	}
+
+	emailOTPsMu.Lock()
 	emailOTPs[req.Email] = OTPData{
 		OTP:       otp,
 		ExpiresAt: time.Now().Add(5 * time.Minute),
 	}
+	emailOTPsMu.Unlock()
 
 	body := utils.GetOTPEmailTemplate(otp)
 
@@ -226,13 +227,17 @@ func OrganizerVerifyOTP(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 400, "Invalid request body")
 	}
 
+	emailOTPsMu.Lock()
 	storedOTP, ok := emailOTPs[req.Email]
+	emailOTPsMu.Unlock()
 	if !ok {
 		return utils.ErrorResponse(c, 401, "No verification request found for this email. Please request a new code.")
 	}
 
 	if time.Now().After(storedOTP.ExpiresAt) {
+		emailOTPsMu.Lock()
 		delete(emailOTPs, req.Email)
+		emailOTPsMu.Unlock()
 		return utils.ErrorResponse(c, 401, "The verification code has expired. Please request a new one.")
 	}
 
@@ -252,7 +257,9 @@ func OrganizerVerifyOTP(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 500, "Failed to update verify email")
 	}
 
+	emailOTPsMu.Lock()
 	delete(emailOTPs, req.Email)
+	emailOTPsMu.Unlock()
 
 	token := utils.GenerateToken(user.ID, false)
 
@@ -289,14 +296,20 @@ func ResendOrganizerOTP(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 400, "Email is required")
 	}
 
-	otp := fmt.Sprintf("%06d", rand.Intn(1000000))
+	otp, err := generateSecureOTP()
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to generate OTP")
+	}
+
+	emailOTPsMu.Lock()
 	emailOTPs[req.Email] = OTPData{
 		OTP:       otp,
 		ExpiresAt: time.Now().Add(5 * time.Minute),
 	}
+	emailOTPsMu.Unlock()
 
 	body := utils.GetOTPEmailTemplate(otp)
-	err := utils.SendOTPEmail(utils.EmailPlay, req.Email, "Resend: Verify Your Organizer Account - TicPin", body, otp)
+	err = utils.SendOTPEmail(utils.EmailPlay, req.Email, "Resend: Verify Your Organizer Account - TicPin", body, otp)
 	if err != nil {
 		return utils.ErrorResponse(c, 500, "Failed to send email")
 	}
@@ -315,14 +328,20 @@ func OrganizerForgotPassword(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 404, "Email does not exist. Please check your email or register.")
 	}
 
-	otp := fmt.Sprintf("%06d", rand.Intn(1000000))
+	otp, err := generateSecureOTP()
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to generate OTP")
+	}
+
+	emailOTPsMu.Lock()
 	emailOTPs[req.Email] = OTPData{
 		OTP:       otp,
 		ExpiresAt: time.Now().Add(5 * time.Minute),
 	}
+	emailOTPsMu.Unlock()
 
 	body := utils.GetOTPEmailTemplate(otp)
-	err := utils.SendOTPEmail(utils.EmailPlay, req.Email, "Reset Your Organizer Password - TicPin", body, otp)
+	err = utils.SendOTPEmail(utils.EmailPlay, req.Email, "Reset Your Organizer Password - TicPin", body, otp)
 	if err != nil {
 		return utils.ErrorResponse(c, 500, "Failed to send reset email")
 	}
@@ -336,13 +355,17 @@ func OrganizerResetPassword(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 400, "Invalid request body")
 	}
 
+	emailOTPsMu.Lock()
 	storedOTP, ok := emailOTPs[req.Email]
+	emailOTPsMu.Unlock()
 	if !ok {
 		return utils.ErrorResponse(c, 401, "No reset request found for this email. Please request a new code.")
 	}
 
 	if time.Now().After(storedOTP.ExpiresAt) {
+		emailOTPsMu.Lock()
 		delete(emailOTPs, req.Email)
+		emailOTPsMu.Unlock()
 		return utils.ErrorResponse(c, 401, "The reset code has expired. Please request a new one.")
 	}
 
@@ -367,7 +390,9 @@ func OrganizerResetPassword(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 500, "Failed to reset password")
 	}
 
+	emailOTPsMu.Lock()
 	delete(emailOTPs, req.Email)
+	emailOTPsMu.Unlock()
 
 	return utils.SuccessResponse(c, 200, "Password reset successfully. You can now login with your new password.", nil)
 }

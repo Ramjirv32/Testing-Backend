@@ -1,17 +1,21 @@
 package partner
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
 
+	"backend/config"
 	"backend/models"
 	"backend/repository"
 	"backend/tasks"
 	"backend/utils"
-	"strings"
 )
 
 var partnerRepo = repository.NewPartnerRepository()
@@ -342,13 +346,16 @@ func VerifyPAN(c fiber.Ctx) error {
 
 	userID := c.Locals("uid").(string)
 
-	existing, _ := partnerRepo.FindByPAN(c.Context(), pr.PAN)
+	// Normalise PAN early so all comparisons use a consistent value
+	panUpper := strings.ToUpper(strings.TrimSpace(pr.PAN))
+
+	existing, _ := partnerRepo.FindByPAN(c.Context(), panUpper)
 	if existing != nil && existing.UserID != userID {
 		auditRepo.Log(c.Context(), &models.AuditLog{
 			UserID:    userID,
 			Action:    "PAN_VERIFICATION",
 			Status:    "FAILED",
-			Details:   fmt.Sprintf("PAN %s already linked to another account", pr.PAN),
+			Details:   fmt.Sprintf("PAN %s already linked to another account", panUpper),
 			IPAddress: c.IP(),
 		})
 		return utils.ErrorResponse(c, 400, "This PAN is already registered under another account. Each PAN can only be associated with one account.")
@@ -361,7 +368,7 @@ func VerifyPAN(c fiber.Ctx) error {
 	}
 
 	// Only shortcut if PAN, Name, AND DOB match what we have stored
-	if user.IsPanVerified && user.PanNumber == pr.PAN && user.PanDetails != nil {
+	if user.IsPanVerified && user.PanNumber == panUpper && user.PanDetails != nil {
 		storedName := strings.ToLower(strings.TrimSpace(user.PanDetails.RegisteredName))
 		providedName := strings.ToLower(strings.TrimSpace(pr.Name))
 		storedDOB := strings.TrimSpace(user.PanDetails.DOB)
@@ -376,28 +383,125 @@ func VerifyPAN(c fiber.Ctx) error {
 		}
 	}
 
-	// MOCK VERIFICATION: Accept any PAN and details provided
-	// In production, this would call Cashfree/Karza API
-	verificationID := fmt.Sprintf("mock_pan_%s", utils.GenerateUUIDv7()[:12])
+	// Call real Cashfree PAN Lite API
+	cfg := config.LoadConfig()
+	if cfg.CashfreeClientID == "" || cfg.CashfreeSecret == "" {
+		return utils.ErrorResponse(c, 500, "PAN verification service not configured. Please contact support.")
+	}
+
+	type cashfreePANReq struct {
+		PAN string `json:"pan"`
+	}
+	type cashfreePANData struct {
+		PAN                      string `json:"pan"`
+		PANStatus                string `json:"pan_status"`
+		RegisteredName           string `json:"registered_name"`
+		NamePANCard              string `json:"name_pan_card"`
+		Type                     string `json:"type"`
+		AadhaarSeedingStatus     string `json:"aadhaar_seeding_status"`
+		AadhaarSeedingStatusDesc string `json:"aadhaar_seeding_status_desc"`
+		FirstName                string `json:"first_name"`
+		LastName                 string `json:"last_name"`
+		Gender                   string `json:"gender"`
+		DOB                      string `json:"dob"`
+	}
+	type cashfreePANResp struct {
+		Status         string          `json:"status"`
+		Message        interface{}     `json:"message"`
+		Data           cashfreePANData `json:"data"`
+		VerificationID string          `json:"verification_id"`
+		ReferenceID    int             `json:"reference_id"`
+	}
+
+	// panUpper already computed above
+	cfReqBody, _ := json.Marshal(cashfreePANReq{PAN: panUpper})
+
+	httpReq, err := http.NewRequestWithContext(c.Context(), "POST", cfg.CashfreePANURL, bytes.NewReader(cfReqBody))
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to create PAN verification request")
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("x-client-id", cfg.CashfreeClientID)
+	httpReq.Header.Set("x-client-secret", cfg.CashfreeSecret)
+	httpReq.Header.Set("x-api-version", "2023-08-01")
+
+	httpClient := &http.Client{Timeout: 15 * time.Second}
+	cfHTTPResp, err := httpClient.Do(httpReq)
+	if err != nil {
+		fmt.Printf(" Cashfree PAN API error: %v\n", err)
+		return utils.ErrorResponse(c, 502, "PAN verification service temporarily unavailable. Please try again.")
+	}
+	defer cfHTTPResp.Body.Close()
+
+	var cfResp cashfreePANResp
+	if err := json.NewDecoder(cfHTTPResp.Body).Decode(&cfResp); err != nil {
+		fmt.Printf(" Failed to decode Cashfree PAN response: %v\n", err)
+		return utils.ErrorResponse(c, 502, "Invalid response from PAN verification service")
+	}
+
+	if cfResp.Status != "SUCCESS" {
+		msg := "PAN verification failed"
+		if cfResp.Message != nil {
+			if s, ok := cfResp.Message.(string); ok && s != "" {
+				msg = s
+			}
+		}
+		auditRepo.Log(c.Context(), &models.AuditLog{
+			UserID:    userID,
+			Action:    "PAN_VERIFICATION",
+			Status:    "FAILED",
+			Details:   fmt.Sprintf("Cashfree rejected PAN %s: %s", pr.PAN, msg),
+			IPAddress: c.IP(),
+		})
+		return utils.ErrorResponse(c, 400, "PAN verification failed: "+msg)
+	}
+
+	// pan_status "E" = Existing (valid), "I" = Invalid
+	if cfResp.Data.PANStatus != "E" {
+		auditRepo.Log(c.Context(), &models.AuditLog{
+			UserID:    userID,
+			Action:    "PAN_VERIFICATION",
+			Status:    "FAILED",
+			Details:   fmt.Sprintf("PAN %s invalid or inactive (status: %s)", pr.PAN, cfResp.Data.PANStatus),
+			IPAddress: c.IP(),
+		})
+		return utils.ErrorResponse(c, 400, fmt.Sprintf("PAN is invalid or inactive (status: %s). Please provide a valid PAN.", cfResp.Data.PANStatus))
+	}
+
+	// Name match — compare provided name with registered name on PAN
+	registeredName := strings.ToLower(strings.TrimSpace(cfResp.Data.RegisteredName))
+	providedName := strings.ToLower(strings.TrimSpace(pr.Name))
+	nameMatch := "N"
+	if registeredName != "" && providedName != "" {
+		rNorm := strings.ReplaceAll(registeredName, " ", "")
+		pNorm := strings.ReplaceAll(providedName, " ", "")
+		if rNorm == pNorm || strings.Contains(registeredName, providedName) || strings.Contains(providedName, registeredName) {
+			nameMatch = "Y"
+		}
+	}
 
 	panVerification := models.PANVerification{
-		Status:         "VALID",
-		VerificationID: verificationID,
-		RegisteredName: pr.Name,
-		NameProvided:   pr.Name,
-		NameMatch:      "Y",
-		DOBMatch:       "Y",
-		PanStatus:      "VALID",
-		DOB:            pr.DOB,
-		VerifiedAt:     time.Now(),
+		Status:                   "VALID",
+		ReferenceID:              cfResp.ReferenceID,
+		VerificationID:           cfResp.VerificationID,
+		RegisteredName:           cfResp.Data.RegisteredName,
+		NamePanCard:              cfResp.Data.NamePANCard,
+		NameProvided:             pr.Name,
+		NameMatch:                nameMatch,
+		PanStatus:                cfResp.Data.PANStatus,
+		DOB:                      cfResp.Data.DOB,
+		DOBMatch:                 "N", // PAN Lite does not verify DOB
+		Type:                     cfResp.Data.Type,
+		Gender:                   cfResp.Data.Gender,
+		FirstName:                cfResp.Data.FirstName,
+		LastName:                 cfResp.Data.LastName,
+		AadhaarSeedingStatus:     cfResp.Data.AadhaarSeedingStatus,
+		AadhaarSeedingStatusDesc: cfResp.Data.AadhaarSeedingStatusDesc,
+		VerifiedAt:               time.Now(),
 	}
-	// Mock address for prefill purposes
-	panVerification.Address.State = "Karnataka"
-	panVerification.Address.City = "Bangalore"
-	panVerification.Address.Country = "India"
 
 	// Store PAN details on user record
-	user.PanNumber = pr.PAN
+	user.PanNumber = panUpper
 	user.PanDetails = &panVerification
 	user.IsPanVerified = true
 	user.UpdatedAt = time.Now()
@@ -418,13 +522,13 @@ func VerifyPAN(c fiber.Ctx) error {
 		UserID:    userID,
 		Action:    "PAN_VERIFICATION",
 		Status:    "SUCCESS",
-		Details:   fmt.Sprintf("PAN %s verified successfully for %s", pr.PAN, pr.Name),
+		Details:   fmt.Sprintf("PAN %s verified successfully for %s (name_match=%s)", panUpper, cfResp.Data.RegisteredName, nameMatch),
 		IPAddress: c.IP(),
 	})
 
-	return utils.SuccessResponse(c, 200, "PAN verified successfully via PAN Lite", fiber.Map{
+	return utils.SuccessResponse(c, 200, "PAN verified successfully", fiber.Map{
 		"pan_verification": panVerification,
-		"pan":              pr.PAN,
+		"pan":              panUpper,
 		"already_verified": false,
 	})
 }
@@ -442,25 +546,86 @@ func GetGSTINsFromPAN(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 400, "PAN is required")
 	}
 
-	// MOCK RESPONSE: Prevent Cashfree API call
-	result := map[string]interface{}{
-		"status":          "SUCCESS",
-		"reference_id":    123456,
-		"verification_id": fmt.Sprintf("mock_gst_%s", utils.GenerateUUIDv7()[:12]),
-		"pan":             pr.PAN,
-		"gstin_list":      []interface{}{},
+	userID := c.Locals("uid").(string)
+
+	// Call real Cashfree PAN-GSTIN API
+	gstinCfg := config.LoadConfig()
+	if gstinCfg.CashfreeClientID == "" || gstinCfg.CashfreeSecret == "" {
+		return utils.ErrorResponse(c, 500, "GSTIN verification service not configured.")
 	}
 
-	userID := c.Locals("uid").(string)
+	type gstinReqBody struct {
+		PAN string `json:"pan"`
+	}
+	type gstinEntry struct {
+		GSTIN  string `json:"gstin"`
+		Status string `json:"status"`
+		State  string `json:"state"`
+	}
+	type gstinRespData struct {
+		GSTINList []gstinEntry `json:"gstin_list"`
+	}
+	type cashfreeGSTINResp struct {
+		Status         string        `json:"status"`
+		Message        interface{}   `json:"message"`
+		ReferenceID    int           `json:"reference_id"`
+		VerificationID string        `json:"verification_id"`
+		PAN            string        `json:"pan"`
+		Data           gstinRespData `json:"data"`
+	}
+
+	panForGSTIN := strings.ToUpper(strings.TrimSpace(pr.PAN))
+	gstinBodyBytes, _ := json.Marshal(gstinReqBody{PAN: panForGSTIN})
+
+	gstinHTTPReq, err := http.NewRequestWithContext(c.Context(), "POST", gstinCfg.CashfreePANGSTINURL, bytes.NewReader(gstinBodyBytes))
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to create GSTIN request")
+	}
+	gstinHTTPReq.Header.Set("Content-Type", "application/json")
+	gstinHTTPReq.Header.Set("x-client-id", gstinCfg.CashfreeClientID)
+	gstinHTTPReq.Header.Set("x-client-secret", gstinCfg.CashfreeSecret)
+	gstinHTTPReq.Header.Set("x-api-version", "2023-08-01")
+
+	gstinClient := &http.Client{Timeout: 15 * time.Second}
+	gstinHTTPResp, err := gstinClient.Do(gstinHTTPReq)
+	if err != nil {
+		fmt.Printf(" Cashfree GSTIN API error: %v\n", err)
+		return utils.ErrorResponse(c, 502, "GSTIN verification service temporarily unavailable")
+	}
+	defer gstinHTTPResp.Body.Close()
+
+	var gstinCFResp cashfreeGSTINResp
+	if err := json.NewDecoder(gstinHTTPResp.Body).Decode(&gstinCFResp); err != nil {
+		fmt.Printf(" Failed to decode Cashfree GSTIN response: %v\n", err)
+		return utils.ErrorResponse(c, 502, "Invalid response from GSTIN verification service")
+	}
+
+	gstinList := []interface{}{}
+	for _, g := range gstinCFResp.Data.GSTINList {
+		gstinList = append(gstinList, map[string]interface{}{
+			"gstin":  g.GSTIN,
+			"status": g.Status,
+			"state":  g.State,
+		})
+	}
+
+	result := map[string]interface{}{
+		"status":          gstinCFResp.Status,
+		"reference_id":    gstinCFResp.ReferenceID,
+		"verification_id": gstinCFResp.VerificationID,
+		"pan":             panForGSTIN,
+		"gstin_list":      gstinList,
+	}
+
 	auditRepo.Log(c.Context(), &models.AuditLog{
 		UserID:    userID,
 		Action:    "GSTIN_VERIFICATION",
 		Status:    "SUCCESS",
-		Details:   fmt.Sprintf("Mock GSTIN result for PAN %s", pr.PAN),
+		Details:   fmt.Sprintf("GSTIN lookup for PAN %s returned %d result(s)", panForGSTIN, len(gstinCFResp.Data.GSTINList)),
 		IPAddress: c.IP(),
 	})
 
-	return utils.SuccessResponse(c, 200, "GSTIN mapping completed (Mock)", result)
+	return utils.SuccessResponse(c, 200, "GSTIN mapping completed", result)
 }
 
 // GetPrefillData returns previously verified PAN details and profile data

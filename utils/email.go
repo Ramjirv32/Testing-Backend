@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"gopkg.in/gomail.v2"
 )
@@ -127,51 +128,34 @@ func getEmailLogoSVG() string {
 
 // getEmailSocialFooter returns the common email footer with help section, social icons and copyright
 func getEmailSocialFooter() string {
-	return `<table width="450" cellpadding="0" cellspacing="0" style="margin-top:20px;color:#ffffff;">
+	return `
+<table width="611" align="center" style="margin-top:40px;color:#ffffff;">
+<tr><td style="font-weight:600;font-size:35px;">LOOKING FOR HELP?</td></tr>
+<tr><td style="padding-top:15px;font-size:20px;">Mail us at <span style="color:#4EA3FF;">support@ticpin.in</span> (10AM-5PM), and we’ll help you out.</td></tr>
+<tr><td style="padding-top:30px;"><hr style="border:1px solid #ffffff;"></td></tr>
 <tr>
-<td style="font-weight:600;font-size:30px;line-height:100%%;">
-LOOKING FOR HELP?
+<td align="center" style="padding:20px 0;">
+<a href="#"><img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/whatsapp.png?alt=media" width="50" height="50"></a>
+<a href="#" style="margin:0 25px;display:inline-block;"><img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/facebook.png?alt=media" width="50" height="50"></a>
+<a href="#"><img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/insta.png?alt=media" width="50" height="50"></a>
+<a href="#" style="margin:0 25px;display:inline-block;"><img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/youtube.png?alt=media" width="50" height="50"></a>
+<a href="#"><img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/tiwteer.png?alt=media" width="50" height="50"></a>
 </td>
 </tr>
-
-<tr>
-<td style="padding-top:10px;font-weight:500;font-size:20px;line-height:22px;">
-Mail us at <span style="color:#4EA3FF;">support@ticpin.in</span> (10AM-5PM), and we’ll help you out.
-</td>
-</tr>
-
-<tr>
-<td style="padding-top:12px;">
-<hr style="border:1px solid #ffffff;">
-</td>
-</tr>
-
-<tr>
-<td align="center" style="padding:12px 0;">
-<a href="#">
-    <img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/whatsapp.png?alt=media" width="50" height="50" style="display:inline-block;">
-</a>
-<a href="#" style="margin:0 25px;display:inline-block;">
-    <img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/facebook.png?alt=media" width="50" height="50" style="display:inline-block;">
-</a>
-<a href="#">
-    <img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/insta.png?alt=media" width="50" height="50" style="display:inline-block;">
-</a>
-<a href="#" style="margin:0 25px;display:inline-block;">
-    <img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/youtube.png?alt=media" width="50" height="50" style="display:inline-block;">
-</a>
-<a href="#">
-    <img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/tiwteer.png?alt=media" width="50" height="50" style="display:inline-block;">
-</a>
-</td>
-</tr>
-
-<tr>
-<td>
-<hr style="border:1px solid #ffffff;">
-</td>
-</tr>
+<tr><td><hr style="border:1px solid #ffffff;"></td></tr>
 </table>`
+}
+
+func parseDateComponents(dateStr string) (day, date, month, dateMonth string) {
+	t, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		// Try dd Jan 2006
+		t, err = time.Parse("02 Jan 2006", dateStr)
+		if err != nil {
+			return "", dateStr, "", dateStr
+		}
+	}
+	return t.Format("Monday"), t.Format("02"), t.Format("January"), t.Format("02 January")
 }
 
 func GetOTPEmailTemplate(otp string) string {
@@ -195,7 +179,7 @@ func GetOTPEmailTemplate(otp string) string {
 <!-- Purple Header -->
 <tr>
 <td align="center" style="margin-top: 0px; background:#5331EA;padding:25px 0;border-top-left-radius:15px;border-top-right-radius:15px;">
-<img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/logo.png?alt=media" width="140" height="35" style="display:block;">
+<img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/logo.png?alt=media&token=96a72021-6f7d-45c6-b270-77e73b80cf09" width="140" height="35" style="display:block;">
 </td>
 </tr>
 
@@ -288,8 +272,8 @@ Mail us at <span style="color:#4EA3FF;">support@ticpin.in</span> (10AM-5PM), and
 	`, otp)
 }
 
-// GetPlayBookingEmailTemplate returns the play booking confirmation email HTML
 func GetPlayBookingEmailTemplate(playerName, venueName, sport, date, timeSlot, bookingID string) string {
+	day, dayDate, month, dateMonth := parseDateComponents(date)
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <head>
@@ -297,111 +281,52 @@ func GetPlayBookingEmailTemplate(playerName, venueName, sport, date, timeSlot, b
 <title>Play Booking Confirmed</title>
 <link href="https://fonts.googleapis.com/css2?family=Anek+Latin:wght@500;600&display=swap" rel="stylesheet">
 </head>
-
 <body style="margin:0;padding:40px 20px;background:#f0f0f0;font-family:'Anek Latin', sans-serif;">
-
-<table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#0A0132;border-radius:15px;padding:60px 40px 30px 40px;">
-<tr>
-<td align="center">
-
-<!-- Main Card -->
-<table width="460" cellpadding="0" cellspacing="0" style="background:#EBEBEB;border-radius:15px;overflow:hidden;">
-
-<!-- Header -->
-<tr>
-<td style="background:#5331EA;padding:45px 25px 25px 25px;">
-%s
-</td>
-</tr>
-
-<tr>
-<td style="border-top:1px solid #AEAEAE;"></td>
-</tr>
-
-<!-- Title -->
-<tr>
-<td style="padding:25px 30px 10px 30px;">
-<div style="font-weight:600;font-size:28px;color:#000;">
-Play booking confirmed <span style="color:#0AC655;">&#10004;</span>
-</div>
-<div style="margin-top:10px;font-weight:500;font-size:18px;color:#686868;">
-Booking Date : %s
-</div>
-</td>
-</tr>
-
-<!-- Info Card -->
-<tr>
-<td align="center" style="padding:15px 30px;">
-<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:15px;border-left:5px solid #5331EA;">
-<tr>
-<td style="vertical-align:top;">
-<div style="font-weight:600;font-size:20px;color:#000;">
-%s
-</div>
-<div style="margin-top:5px;font-weight:500;font-size:16px;color:#686868;">
-%s
-</div>
-</td>
-</tr>
-</table>
-</td>
-</tr>
-
-<!-- Booking Details -->
-<tr>
-<td align="center" style="padding:0 30px 15px 30px;">
+<table align="center" width="711" cellpadding="0" cellspacing="0" style="background:#0A0132;border-radius:15px;padding:40px 50px;">
+<tr><td align="center">
+<table width="611" cellpadding="0" cellspacing="0" style="background:#EBEBEB;border-radius:15px;overflow:hidden;">
+<tr><td style="background:#5331EA;padding:35px;"><img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/logo.png?alt=media&token=96a72021-6f7d-45c6-b270-77e73b80cf09" width="165" height="41"></td></tr>
+<tr><td style="border-top:1px solid #AEAEAE;"></td></tr>
+<tr><td style="padding:30px 35px 10px 35px;">
+<div style="font-weight:600;font-size:35px;color:#000;">Play booking confirmed <span style="color:#0AC655;">✔</span></div>
+<div style="margin-top:10px;font-weight:500;font-size:20px;color:#686868;">Booking Date : %s, %s, %s</div>
+</td></tr>
+<tr><td align="center" style="padding:20px 35px;">
 <table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:20px;">
-<tr><td style="font-size:14px;color:#686868;">Booking ID</td></tr>
-<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">#%s</td></tr>
-
+<tr><td width="40%%"><div style="background:#AC9BF7;height:111px;width:197px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-weight:600;">PLAY</div></td>
+<td style="vertical-align:top;"><div style="font-weight:600;font-size:20px;color:#000;">%s</div><div style="margin-top:10px;font-weight:500;font-size:20px;color:#686868;">%s</div></td></tr>
+</table></td></tr>
+<tr><td align="center" style="padding:0 35px 20px 35px;">
+<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:25px;">
+<tr><td style="font-size:17px;color:#686868;">Booking ID</td></tr>
+<tr><td style="font-size:20px;color:#000;padding-bottom:15px;">#%s</td></tr>
 <tr><td style="border-top:1px solid #D9D9D9;"></td></tr>
-
-<tr><td style="font-size:14px;color:#686868;padding-top:12px;">Player Name</td></tr>
-<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">%s</td></tr>
-
-<tr><td style="font-size:14px;color:#686868;">Date &amp; Time</td></tr>
-<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">%s | %s</td></tr>
-
-<tr><td style="font-size:14px;color:#686868;">Status</td></tr>
-<tr><td style="font-size:18px;color:#0AC655;font-weight:600;">Confirmed</td></tr>
+<tr><td style="font-size:17px;color:#686868;padding-top:15px;">Date & Time</td></tr>
+<tr><td style="font-size:20px;color:#000;padding-bottom:15px;">%s %s %s | %s</td></tr>
+<tr><td style="font-size:17px;color:#686868;">Player Name</td></tr>
+<tr><td style="font-size:20px;color:#000;padding-bottom:15px;">%s</td></tr>
+<tr><td style="font-size:17px;color:#686868;">Location</td></tr>
+<tr><td style="font-size:20px;color:#000;padding-bottom:15px;">%s</td></tr>
+<tr><td style="font-size:17px;color:#686868;">Offer</td></tr>
+<tr><td style="font-size:20px;color:#000;">None</td></tr>
+</table></td></tr>
+<tr><td align="center" style="padding:10px 35px 30px 35px;">
+<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:25px;">
+<tr><td style="font-weight:600;font-size:20px;color:#000;padding-bottom:15px;">Notes</td></tr>
+<tr><td style="font-size:17px;color:#686868;padding-bottom:10px;">◆ Please arrive 10 minutes before your slot time.</td></tr>
+<tr><td style="font-size:17px;color:#686868;padding-bottom:10px;">◆ Carry a digital copy of this email for verification.</td></tr>
+<tr><td style="font-size:15px;color:#686868;padding-top:15px;">See you there! <br> Team <span style="color:#5331EA;">Ticpin</span></td></tr>
+</table></td></tr>
 </table>
-</td>
-</tr>
-
-<!-- Notes -->
-<tr>
-<td align="center" style="padding:10px 30px 25px 30px;">
-<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:20px;">
-<tr><td style="font-weight:600;font-size:18px;color:#000;padding-bottom:12px;">Notes</td></tr>
-<tr><td style="font-size:15px;color:#686868;padding-bottom:8px;">&#9670; Please arrive 10 minutes before your slot time.</td></tr>
-<tr><td style="font-size:15px;color:#686868;padding-bottom:8px;">&#9670; Carry a digital copy of this email for entry verification.</td></tr>
-<tr><td style="font-size:15px;color:#686868;padding-top:12px;">See you there! <br> Team <span style="color:#5331EA;font-weight:600;">Ticpin</span></td></tr>
-</table>
-</td>
-</tr>
-</table>
-
-<!-- Footer -->
 %s
-
-</td>
-</tr>
+</td></tr>
 </table>
 </body>
-</html>
-	`, getEmailLogoSVG(), date, venueName, sport, bookingID, playerName, date, timeSlot, getEmailSocialFooter())
+</html>`, day, dateMonth, timeSlot, venueName, sport, bookingID, day, dayDate, month, timeSlot, playerName, venueName, getEmailSocialFooter())
 }
 
-// GetDiningBookingEmailTemplate returns the dining booking confirmation email HTML (matches din.html design)
 func GetDiningBookingEmailTemplate(guestName, restaurantName, date, timeSlot, bookingID string, guestCount int, specialRequest string) string {
-	specialReqHTML := ""
-	if specialRequest != "" {
-		specialReqHTML = fmt.Sprintf(`
-			<tr><td style="font-size:17px;color:#686868;padding-top:15px;">Special Request</td></tr>
-			<tr><td style="font-size:20px;color:#000;font-style:italic;padding-bottom:15px;">"%s"</td></tr>`, specialRequest)
-	}
-
+	day, dayDate, month, dateMonth := parseDateComponents(date)
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <head>
@@ -409,110 +334,52 @@ func GetDiningBookingEmailTemplate(guestName, restaurantName, date, timeSlot, bo
 <title>Table Booking Confirmed</title>
 <link href="https://fonts.googleapis.com/css2?family=Anek+Latin:wght@500;600&display=swap" rel="stylesheet">
 </head>
-
 <body style="margin:0;padding:40px 20px;background:#f0f0f0;font-family:'Anek Latin', sans-serif;">
-
-<table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#0A0132;border-radius:15px;padding:50px 40px 30px 40px;">
-<tr>
-<td align="center">
-
-<!-- Main Container -->
-<table width="460" cellpadding="0" cellspacing="0" style="background:#EBEBEB;border-radius:15px;overflow:hidden;">
-
-<!-- Header -->
-<tr>
-<td style="background:#5331EA;padding:45px 25px 25px 25px;">
-%s
-</td>
-</tr>
-
-<tr>
-<td style="border-top:1px solid #AEAEAE;"></td>
-</tr>
-
-<!-- Title -->
-<tr>
-<td style="padding:25px 30px 10px 30px;">
-<div style="font-weight:600;font-size:28px;color:#000;">
-Table booking confirmed <span style="color:#0AC655;">&#10004;</span>
-</div>
-<div style="margin-top:10px;font-weight:500;font-size:18px;color:#686868;">
-Booking Date : %s
-</div>
-</td>
-</tr>
-
-<!-- Dining Info Card -->
-<tr>
-<td align="center" style="padding:15px 30px;">
-<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:15px;border-left:5px solid #5331EA;">
-<tr>
-<td style="vertical-align:top;">
-<div style="font-weight:600;font-size:20px;color:#000;">
-%s
-</div>
-<div style="margin-top:5px;font-weight:500;font-size:16px;color:#686868;">
-Confirmed Reservation
-</div>
-</td>
-</tr>
-</table>
-</td>
-</tr>
-
-<!-- Booking Details -->
-<tr>
-<td align="center" style="padding:0 30px 15px 30px;">
+<table align="center" width="711" cellpadding="0" cellspacing="0" style="background:#0A0132;border-radius:15px;padding:40px 50px;">
+<tr><td align="center">
+<table width="611" cellpadding="0" cellspacing="0" style="background:#EBEBEB;border-radius:15px;overflow:hidden;">
+<tr><td style="background:#5331EA;padding:35px;"><img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/logo.png?alt=media&token=96a72021-6f7d-45c6-b270-77e73b80cf09" width="165" height="41"></td></tr>
+<tr><td style="border-top:1px solid #AEAEAE;"></td></tr>
+<tr><td style="padding:30px 35px 10px 35px;">
+<div style="font-weight:600;font-size:35px;color:#000;">Table booking confirmed <span style="color:#0AC655;">✔</span></div>
+<div style="margin-top:10px;font-weight:500;font-size:20px;color:#686868;">Booking Date : %s, %s, %s</div>
+</td></tr>
+<tr><td align="center" style="padding:20px 35px;">
 <table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:20px;">
-
-<tr><td style="font-size:14px;color:#686868;">Booking ID</td></tr>
-<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">#%s</td></tr>
-
+<tr><td width="40%%"><div style="background:#AC9BF7;height:111px;width:197px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-weight:600;">DINING</div></td>
+<td style="vertical-align:top;"><div style="font-weight:600;font-size:20px;color:#000;">%s</div><div style="margin-top:10px;font-weight:500;font-size:20px;color:#686868;">%s</div></td></tr>
+</table></td></tr>
+<tr><td align="center" style="padding:0 35px 20px 35px;">
+<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:25px;">
+<tr><td style="font-size:17px;color:#686868;">Booking ID</td></tr>
+<tr><td style="font-size:20px;color:#000;padding-bottom:15px;">#%s</td></tr>
 <tr><td style="border-top:1px solid #D9D9D9;"></td></tr>
-
-<tr><td style="font-size:14px;color:#686868;padding-top:12px;">Guest Name</td></tr>
-<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">%s</td></tr>
-
-<tr><td style="font-size:14px;color:#686868;">Date &amp; Time</td></tr>
-<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">%s | %s</td></tr>
-
-<tr><td style="font-size:14px;color:#686868;">Number of guest(s)</td></tr>
-<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">%d</td></tr>
-
+<tr><td style="font-size:17px;color:#686868;padding-top:15px;">Date & Time</td></tr>
+<tr><td style="font-size:20px;color:#000;padding-bottom:15px;">%s %s %s %s</td></tr>
+<tr><td style="font-size:17px;color:#686868;">Number of guest(s)</td></tr>
+<tr><td style="font-size:20px;color:#000;padding-bottom:15px;">%d</td></tr>
+<tr><td style="font-size:17px;color:#686868;">Location</td></tr>
+<tr><td style="font-size:20px;color:#000;padding-bottom:15px;">%s</td></tr>
+<tr><td style="font-size:17px;color:#686868;">Offer</td></tr>
+<tr><td style="font-size:20px;color:#000;">None</td></tr>
+</table></td></tr>
+<tr><td align="center" style="padding:10px 35px 30px 35px;">
+<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:25px;">
+<tr><td style="font-weight:600;font-size:20px;color:#000;padding-bottom:15px;">Notes</td></tr>
+<tr><td style="font-size:17px;color:#686868;padding-bottom:10px;">◆ Please arrive 10 minutes before your reserved time.</td></tr>
+<tr><td style="font-size:17px;color:#686868;padding-bottom:10px;">◆ Late arrivals may cause reservation cancellation.</td></tr>
+<tr><td style="font-size:15px;color:#686868;padding-top:15px;">See you there! <br> Team <span style="color:#5331EA;">Ticpin</span></td></tr>
+</table></td></tr>
+</table>
 %s
-
-<tr><td style="font-size:14px;color:#686868;">Status</td></tr>
-<tr><td style="font-size:18px;color:#0AC655;font-weight:600;">Confirmed</td></tr>
-
-</table>
-</td>
-</tr>
-
-<!-- Notes Section -->
-<tr>
-<td align="center" style="padding:10px 30px 25px 30px;">
-<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:20px;">
-<tr><td style="font-weight:600;font-size:18px;color:#000;padding-bottom:12px;">Notes</td></tr>
-<tr><td style="font-size:15px;color:#686868;padding-bottom:8px;">&#9670; Please arrive 10 minutes before your reserved time.</td></tr>
-<tr><td style="font-size:15px;color:#686868;padding-top:12px;">See you there! <br> Team <span style="color:#5331EA;font-weight:600;">Ticpin</span></td></tr>
-</table>
-</td>
-</tr>
-</table>
-
-<!-- Footer -->
-%s
-
-</td>
-</tr>
+</td></tr>
 </table>
 </body>
-</html>
-	`, getEmailLogoSVG(), date, restaurantName, bookingID, guestName, date, timeSlot, guestCount, specialReqHTML, getEmailSocialFooter())
+</html>`, day, dateMonth, timeSlot, restaurantName, restaurantName, bookingID, day, dayDate, month, timeSlot, guestCount, restaurantName, getEmailSocialFooter())
 }
 
-// GetEventBookingEmailTemplate returns the event booking confirmation email HTML (matches boook.html design)
-func GetEventBookingEmailTemplate(guestName, eventName, venue, date, time string, ticketCount int, qrImageURL string) string {
+func GetEventBookingEmailTemplate(guestName, eventName, venue, date, timeStr string, ticketCount int, qrImageURL string, bookingID string) string {
+	day, dayDate, month, dateMonth := parseDateComponents(date)
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <head>
@@ -520,112 +387,55 @@ func GetEventBookingEmailTemplate(guestName, eventName, venue, date, time string
 <title>Event Booking Confirmed</title>
 <link href="https://fonts.googleapis.com/css2?family=Anek+Latin:wght@500;600&display=swap" rel="stylesheet">
 </head>
-
 <body style="margin:0;padding:40px 20px;background:#f0f0f0;font-family:'Anek Latin', sans-serif;">
-
-<table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#0A0132;border-radius:15px;padding:60px 40px 30px 40px;">
-<tr>
-<td align="center">
-
-<!-- Main Card -->
-<table width="460" cellpadding="0" cellspacing="0" style="background:#EBEBEB;border-radius:15px;overflow:hidden;">
-
-<!-- Header -->
-<tr>
-<td style="background:#5331EA;padding:45px 25px 25px 25px;">
-%s
-</td>
-</tr>
-
-<tr>
-<td style="border-top:1px solid #AEAEAE;"></td>
-</tr>
-
-<!-- Title -->
-<tr>
-<td style="padding:25px 30px 10px 30px;">
-<div style="font-weight:600;font-size:28px;color:#000;">
-Event booking confirmed <span style="color:#0AC655;">&#10004;</span>
-</div>
-<div style="margin-top:10px;font-weight:500;font-size:18px;color:#686868;">
-Booking Date : %s
-</div>
-</td>
-</tr>
-
-<!-- Event Info Card -->
-<tr>
-<td align="center" style="padding:15px 30px;">
-<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:15px;border-left:5px solid #5331EA;">
-<tr>
-<td style="vertical-align:top;">
-<div style="font-weight:600;font-size:20px;color:#000;">
-%s
-</div>
-<div style="margin-top:5px;font-weight:500;font-size:16px;color:#686868;">
-%s
-</div>
-</td>
-</tr>
-</table>
-</td>
-</tr>
-
-<!-- Booking Details -->
-<tr>
-<td align="center" style="padding:0 30px 15px 30px;">
+<table align="center" width="711" cellpadding="0" cellspacing="0" style="background:#0A0132;border-radius:15px;padding:40px 50px;">
+<tr><td align="center">
+<table width="611" cellpadding="0" cellspacing="0" style="background:#EBEBEB;border-radius:15px;overflow:hidden;">
+<tr><td style="background:#5331EA;padding:35px;"><img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/logo.png?alt=media&token=96a72021-6f7d-45c6-b270-77e73b80cf09" width="165" height="41"></td></tr>
+<tr><td style="border-top:1px solid #AEAEAE;"></td></tr>
+<tr><td style="padding:30px 35px 10px 35px;">
+<div style="font-weight:600;font-size:35px;color:#000;">Event booking confirmed <span style="color:#0AC655;">✔</span></div>
+<div style="margin-top:10px;font-weight:500;font-size:20px;color:#686868;">Booking Date : %s, %s, %s</div>
+</td></tr>
+<tr><td align="center" style="padding:20px 35px;">
 <table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:20px;">
-
-<tr><td style="font-size:14px;color:#686868;">Guest Name</td></tr>
-<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">%s</td></tr>
-
-<tr><td style="font-size:14px;color:#686868;">Date &amp; Time</td></tr>
-<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">%s | %s</td></tr>
-
-<tr><td style="font-size:14px;color:#686868;">Number of ticket(s)</td></tr>
-<tr><td style="font-size:18px;color:#000;font-weight:600;padding-bottom:12px;">%d</td></tr>
-
-<tr><td style="font-size:14px;color:#686868;">Status</td></tr>
-<tr><td style="font-size:18px;color:#0AC655;font-weight:600;">Confirmed</td></tr>
-
-</table>
-</td>
-</tr>
-
-<!-- QR Section -->
-<tr>
-<td align="center" style="padding:20px;">
-<div style="width:180px;height:180px;background:rgba(83,49,234,0.15);padding:15px;border-radius:12px;">
-<img src="%s" width="150" style="display:block;margin:0 auto;">
+<tr><td width="40%%"><div style="background:#AC9BF7;height:111px;width:197px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-weight:600;">EVENT</div></td>
+<td style="vertical-align:top;"><div style="font-weight:600;font-size:20px;color:#000;">%s</div><div style="margin-top:10px;font-weight:500;font-size:20px;color:#686868;">%s</div></td></tr>
+</table></td></tr>
+<tr><td align="center" style="padding:0 35px 20px 35px;">
+<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:25px;">
+<tr><td style="font-size:17px;color:#686868;">Booking ID</td></tr>
+<tr><td style="font-size:20px;color:#000;padding-bottom:15px;">#%s</td></tr>
+<tr><td style="border-top:1px solid #D9D9D9;"></td></tr>
+<tr><td style="font-size:17px;color:#686868;padding-top:15px;">Date & Time</td></tr>
+<tr><td style="font-size:20px;color:#000;padding-bottom:15px;">%s %s %s | %s</td></tr>
+<tr><td style="font-size:17px;color:#686868;">Number of ticket(s)</td></tr>
+<tr><td style="font-size:20px;color:#000;padding-bottom:15px;">%d</td></tr>
+<tr><td style="font-size:17px;color:#686868;">Location</td></tr>
+<tr><td style="font-size:20px;color:#000;padding-bottom:15px;">%s</td></tr>
+<tr><td style="font-size:17px;color:#686868;">Gate opening time</td></tr>
+<tr><td style="font-size:20px;color:#000;padding-bottom:15px;">%s</td></tr>
+<tr><td style="font-size:17px;color:#686868;">Offer</td></tr>
+<tr><td style="font-size:20px;color:#000;">None</td></tr>
+</table></td></tr>
+<tr><td align="center" style="padding:30px;">
+<div style="width:215px;height:215px;background:rgba(83,49,234,0.15);display:flex;align-items:center;justify-content:center;border-radius:12px;">
+<img src="%s" width="180">
 </div>
-
-<div style="margin-top:15px;font-size:15px;color:#686868;text-align:center;">
-Show this QR code at the venue for entry verification.
-</div>
-</td>
-</tr>
-
-<!-- Notes -->
-<tr>
-<td align="center" style="padding:10px 30px 25px 30px;">
-<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:20px;">
-<tr><td style="font-weight:600;font-size:18px;color:#000;padding-bottom:12px;">Notes</td></tr>
-<tr><td style="font-size:15px;color:#686868;padding-bottom:8px;">&#9670; Please arrive 15 minutes before the event start time.</td></tr>
-<tr><td style="font-size:15px;color:#686868;padding-top:12px;">See you there! <br> Team <span style="color:#5331EA;font-weight:600;">Ticpin</span></td></tr>
+</td></tr>
+<tr><td align="center" style="padding:10px 35px 30px 35px;">
+<table width="100%%" style="background:#FFFFFF;border-radius:10px;padding:25px;">
+<tr><td style="font-weight:600;font-size:20px;color:#000;padding-bottom:15px;">Notes</td></tr>
+<tr><td style="font-size:17px;color:#686868;padding-bottom:10px;">◆ Please arrive 15 minutes before the event start time.</td></tr>
+<tr><td style="font-size:17px;color:#686868;padding-bottom:10px;">◆ Follow all venue rules and safety instructions.</td></tr>
+<tr><td style="font-size:15px;color:#686868;padding-top:15px;">See you there! <br> Team <span style="color:#5331EA;">Ticpin</span></td></tr>
+</table></td></tr>
 </table>
-</td>
-</tr>
-</table>
-
-<!-- Footer -->
 %s
-
-</td>
-</tr>
+</td></tr>
 </table>
 </body>
-</html>
-	`, getEmailLogoSVG(), date, eventName, venue, guestName, date, time, ticketCount, qrImageURL, getEmailSocialFooter())
+</html>`, day, dateMonth, timeStr, eventName, venue, bookingID, day, dayDate, month, timeStr, ticketCount, venue, timeStr, qrImageURL, getEmailSocialFooter())
 }
 
 // GetPassPurchaseEmailTemplate returns the pass purchase confirmation email HTML

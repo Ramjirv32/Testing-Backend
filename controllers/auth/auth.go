@@ -5,10 +5,12 @@ import (
 	"backend/models"
 	"backend/repository"
 	"backend/utils"
+	"crypto/rand"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -21,7 +23,16 @@ type OTPData struct {
 
 var userRepo = repository.NewUserRepository()
 var emailOTPs = make(map[string]OTPData)
-var phoneOTPs = make(map[string]OTPData)
+var emailOTPsMu sync.Mutex
+
+// generateSecureOTP produces a cryptographically random 6-digit OTP string.
+func generateSecureOTP() (string, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(1000000))
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%06d", n.Int64()), nil
+}
 
 func SendEmailOTP(c fiber.Ctx) error {
 	var req models.SendEmailOTPRequest
@@ -29,15 +40,21 @@ func SendEmailOTP(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 400, "Invalid request body")
 	}
 
-	otp := fmt.Sprintf("%06d", rand.Intn(1000000))
+	otp, err := generateSecureOTP()
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to generate OTP")
+	}
+
+	emailOTPsMu.Lock()
 	emailOTPs[req.Email] = OTPData{
 		OTP:       otp,
 		ExpiresAt: time.Now().Add(5 * time.Minute),
 	}
+	emailOTPsMu.Unlock()
 
 	body := utils.GetOTPEmailTemplate(otp)
 
-	err := utils.SendOTPEmail(utils.EmailAdmin, req.Email, "Email Verification - TicPin", body, otp)
+	err = utils.SendOTPEmail(utils.EmailAdmin, req.Email, "Email Verification - TicPin", body, otp)
 	if err != nil {
 		return utils.ErrorResponse(c, 500, "Failed to send email")
 	}
@@ -51,13 +68,17 @@ func VerifyEmail(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 400, "Invalid request body")
 	}
 
+	emailOTPsMu.Lock()
 	storedOTP, ok := emailOTPs[req.Email]
+	emailOTPsMu.Unlock()
 	if !ok {
 		return utils.ErrorResponse(c, 401, "No OTP sent for this email")
 	}
 
 	if time.Now().After(storedOTP.ExpiresAt) {
+		emailOTPsMu.Lock()
 		delete(emailOTPs, req.Email)
+		emailOTPsMu.Unlock()
 		return utils.ErrorResponse(c, 401, "OTP has expired")
 	}
 
@@ -79,30 +100,17 @@ func VerifyEmail(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 500, "Failed to update profile")
 	}
 
+	emailOTPsMu.Lock()
 	delete(emailOTPs, req.Email)
+	emailOTPsMu.Unlock()
 
 	return utils.SuccessResponse(c, 200, "Email verified and profile updated", user)
 }
 
+// SendOTP is kept for route compatibility but phone OTP is now handled entirely
+// by Firebase client-side (signInWithPhoneNumber). This endpoint is a no-op.
 func SendOTP(c fiber.Ctx) error {
-	var req models.SendOTPRequest
-	if err := c.Bind().Body(&req); err != nil {
-		return utils.ErrorResponse(c, 400, "Invalid request body")
-	}
-
-	if len(req.Phone) != 10 {
-		return utils.ErrorResponse(c, 400, "Phone number must be exactly 10 digits")
-	}
-
-	otp := "123456"
-
-	phoneOTPs[req.Phone] = OTPData{
-		OTP:       otp,
-		ExpiresAt: time.Now().Add(30 * time.Minute),
-	}
-
-	fmt.Printf(" OTP for %s is %s (SMS Bypassed)\n", req.Phone, otp)
-	return utils.SuccessResponse(c, 200, "OTP sent successfully (Testing Mode)", nil)
+	return utils.SuccessResponse(c, 200, "Phone verification is handled via Firebase. Please use the app to authenticate.", nil)
 }
 
 func Login(c fiber.Ctx) error {
@@ -114,17 +122,40 @@ func Login(c fiber.Ctx) error {
 
 	var phoneNumber string
 	var firebaseUID string
-	_ = firebaseUID
 
-	if len(req.Phone) != 10 {
-		return utils.ErrorResponse(c, 400, "Phone number must be exactly 10 digits")
-	}
-
-	phoneNumber = req.Phone
-	fmt.Printf(" Login attempt for phone: %s (no verification)\n", phoneNumber)
-
-	if phoneNumber == "0000000000" {
-		fmt.Println(" Admin login detected")
+	if req.FirebaseToken != "" {
+		// Verify Firebase ID token issued by Firebase phone authentication
+		if config.FirebaseAuth == nil {
+			return utils.ErrorResponse(c, 500, "Authentication service unavailable")
+		}
+		fbToken, err := config.FirebaseAuth.VerifyIDToken(c.Context(), req.FirebaseToken)
+		if err != nil {
+			fmt.Printf(" Firebase token verification failed: %v\n", err)
+			return utils.ErrorResponse(c, 401, "OTP verification failed. Please request a new OTP and try again.")
+		}
+		// Firebase phone auth stores E.164 phone in the token claims
+		fbPhone, _ := fbToken.Claims["phone_number"].(string)
+		fbPhone = strings.TrimPrefix(fbPhone, "+91") // strip India country code
+		fbPhone = strings.TrimPrefix(fbPhone, "+")
+		if len(fbPhone) == 10 {
+			phoneNumber = fbPhone
+		} else if len(req.Phone) == 10 {
+			phoneNumber = req.Phone
+		} else {
+			return utils.ErrorResponse(c, 400, "Could not resolve phone number from verification token")
+		}
+		firebaseUID = fbToken.UID
+		fmt.Printf(" Firebase token verified for phone: %s\n", phoneNumber)
+	} else {
+		// No Firebase token — only allowed in development mode (for local testing)
+		if os.Getenv("ENV") == "production" {
+			return utils.ErrorResponse(c, 401, "Phone verification required. Please verify your phone number via OTP.")
+		}
+		if len(req.Phone) != 10 {
+			return utils.ErrorResponse(c, 400, "Phone number must be exactly 10 digits")
+		}
+		phoneNumber = req.Phone
+		fmt.Printf(" Login without Firebase token for phone: %s (dev mode)\n", phoneNumber)
 	}
 
 	// Read admin phones from env (comma-separated). Defaults to "0000000000" for local dev.
