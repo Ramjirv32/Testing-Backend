@@ -442,22 +442,33 @@ func VerifyPAN(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 502, "Invalid response from PAN verification service")
 	}
 
+	// Log raw response for debugging
+	fmt.Printf(" Cashfree PAN Lite response: status=%s pan_status=%s name_match=%s dob_match=%s\n",
+		cfResp.Status, cfResp.PANStatus, cfResp.NameMatch, cfResp.DOBMatch)
+
 	// PAN Lite returns "VALID" on success (not "SUCCESS")
 	if cfResp.Status != "VALID" {
-		msg := "PAN verification failed"
+		// Extract raw message for logging
+		rawMsg := ""
 		if cfResp.Message != nil {
-			if s, ok := cfResp.Message.(string); ok && s != "" {
-				msg = s
+			switch v := cfResp.Message.(type) {
+			case string:
+				rawMsg = v
+			case map[string]interface{}:
+				if b, err := json.Marshal(v); err == nil {
+					rawMsg = string(b)
+				}
 			}
 		}
 		auditRepo.Log(c.Context(), &models.AuditLog{
 			UserID:    userID,
 			Action:    "PAN_VERIFICATION",
 			Status:    "FAILED",
-			Details:   fmt.Sprintf("Cashfree rejected PAN %s: status=%s msg=%s", panUpper, cfResp.Status, msg),
+			Details:   fmt.Sprintf("Cashfree rejected PAN %s: status=%s raw=%s", panUpper, cfResp.Status, rawMsg),
 			IPAddress: c.IP(),
 		})
-		return utils.ErrorResponse(c, 400, "PAN verification failed: "+msg)
+		// Give a clear, actionable message to the user
+		return utils.ErrorResponse(c, 400, "PAN verification failed. Please check that your PAN number is correct and that your Name and Date of Birth exactly match your PAN card.")
 	}
 
 	// pan_status "E" = Existing (valid/active), "I" = Invalid
@@ -469,13 +480,38 @@ func VerifyPAN(c fiber.Ctx) error {
 			Details:   fmt.Sprintf("PAN %s invalid or inactive (pan_status: %s)", panUpper, cfResp.PANStatus),
 			IPAddress: c.IP(),
 		})
-		return utils.ErrorResponse(c, 400, fmt.Sprintf("PAN is invalid or inactive (status: %s). Please provide a valid active PAN.", cfResp.PANStatus))
+		return utils.ErrorResponse(c, 400, "Invalid PAN number. This PAN appears to be invalid or inactive. Please verify your PAN number and try again.")
 	}
 
 	// Use name_match returned by Cashfree directly
 	nameMatch := cfResp.NameMatch
 	if nameMatch == "" {
 		nameMatch = "N"
+	}
+
+	// Reject if name does not match PAN records
+	if nameMatch == "N" {
+		auditRepo.Log(c.Context(), &models.AuditLog{
+			UserID:    userID,
+			Action:    "PAN_VERIFICATION",
+			Status:    "FAILED",
+			Details:   fmt.Sprintf("PAN %s name mismatch: provided=%s", panUpper, pr.Name),
+			IPAddress: c.IP(),
+		})
+		return utils.ErrorResponse(c, 400, "Name mismatch. The name you entered does not match PAN records. Please enter your full name exactly as it appears on your PAN card.")
+	}
+
+	// Reject if DOB was provided and does not match PAN records
+	dobMatch := cfResp.DOBMatch
+	if pr.DOB != "" && dobMatch == "N" {
+		auditRepo.Log(c.Context(), &models.AuditLog{
+			UserID:    userID,
+			Action:    "PAN_VERIFICATION",
+			Status:    "FAILED",
+			Details:   fmt.Sprintf("PAN %s dob mismatch: provided=%s", panUpper, pr.DOB),
+			IPAddress: c.IP(),
+		})
+		return utils.ErrorResponse(c, 400, "Date of birth mismatch. The date of birth you entered does not match PAN records. Please enter your DOB exactly as registered on your PAN card.")
 	}
 
 	panVerification := models.PANVerification{
