@@ -30,6 +30,9 @@ type SlotSettings struct {
 	OpenTime              string `json:"open_time" firestore:"open_time"`
 	CloseTime             string `json:"close_time" firestore:"close_time"`
 	MaxDaysAdvanceBooking int    `json:"max_days_advance_booking" firestore:"max_days_advance_booking"`
+	// TotalCourts is the number of courts/lanes available for simultaneous bookings in the same time slot.
+	// Defaults to 1 if not set. Multiple users can book the same slot up to this limit.
+	TotalCourts int `json:"total_courts" firestore:"total_courts"`
 }
 
 type PlayFAQ struct {

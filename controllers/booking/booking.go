@@ -1,6 +1,7 @@
 package booking
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -44,8 +45,18 @@ func CreatePlayBooking(c fiber.Ctx) error {
 		organizerEmail = organizer.Email
 	}
 
-	// NOTE: Slot availability check removed until date/time picker UI is implemented.
-	// When date & time selection is added to the frontend, re-enable CheckPlayAvailability here.
+	// Check slot availability: allow up to venue.SlotSettings.TotalCourts simultaneous bookings
+	available, err := playBookingRepo.CheckPlayAvailability(c.Context(), req.VenueID, req.Date, req.TimeSlot, venue.SlotSettings.TotalCourts)
+	if err != nil {
+		return utils.ErrorResponse(c, 500, "Failed to check slot availability")
+	}
+	if !available {
+		courts := venue.SlotSettings.TotalCourts
+		if courts <= 0 {
+			courts = 1
+		}
+		return utils.ErrorResponse(c, 409, fmt.Sprintf("This time slot is fully booked (%d/%d courts taken). Please choose a different slot.", courts, courts))
+	}
 
 	bookingID := utils.GenerateUUIDv7()
 	seqID := utils.GetNextSeqID()
@@ -64,6 +75,9 @@ func CreatePlayBooking(c fiber.Ctx) error {
 		BillingEmail:       req.BillingEmail,
 		BillingState:       req.BillingState,
 		BillingNationality: req.BillingNationality,
+		PaymentID:          req.PaymentID,
+		PaymentGateway:     req.PaymentGateway,
+		PaymentAmount:      req.PaymentAmount,
 		OrganizerID:        venue.OrganizerID,
 		OrganizerEmail:     organizerEmail,
 		Status:             models.BookingConfirmed,
@@ -128,7 +142,11 @@ func CreateDiningBooking(c fiber.Ctx) error {
 		TimeSlot:       req.TimeSlot,
 		GuestCount:     req.GuestCount,
 		GuestName:      req.GuestName,
+		BillingEmail:   req.BillingEmail,
 		SpecialRequest: req.SpecialRequest,
+		PaymentID:      req.PaymentID,
+		PaymentGateway: req.PaymentGateway,
+		PaymentAmount:  req.PaymentAmount,
 		OrganizerID:    restaurant.OrganizerID,
 		OrganizerEmail: organizerEmail,
 		Status:         models.BookingConfirmed,
@@ -140,9 +158,15 @@ func CreateDiningBooking(c fiber.Ctx) error {
 		return utils.ErrorResponse(c, 500, "Failed to create booking")
 	}
 
-	// Send confirmation email to user
-	user, _ := userRepo.FindByID(c.Context(), userID)
-	if user != nil && user.Email != "" {
+	// Send confirmation email — prefer billing email, fallback to user account email
+	emailTo := booking.BillingEmail
+	if emailTo == "" {
+		user, _ := userRepo.FindByID(c.Context(), userID)
+		if user != nil {
+			emailTo = user.Email
+		}
+	}
+	if emailTo != "" {
 		emailBody := utils.GetDiningBookingEmailTemplate(
 			booking.GuestName,
 			booking.RestaurantName,
@@ -153,7 +177,7 @@ func CreateDiningBooking(c fiber.Ctx) error {
 			booking.SpecialRequest,
 		)
 		go func() {
-			utils.SendEmail(utils.EmailDining, user.Email, "Table Reserved - "+booking.RestaurantName, emailBody)
+			utils.SendEmail(utils.EmailDining, emailTo, "Table Reserved - "+booking.RestaurantName, emailBody)
 		}()
 	}
 
@@ -202,6 +226,9 @@ func CreateEventBooking(c fiber.Ctx) error {
 		GuestName:      req.GuestName,
 		BillingEmail:   req.BillingEmail,
 		BillingState:   req.BillingState,
+		PaymentID:      req.PaymentID,
+		PaymentGateway: req.PaymentGateway,
+		PaymentAmount:  req.PaymentAmount,
 		OrganizerID:    event.OrganizerID,
 		OrganizerEmail: organizerEmail,
 		Status:         models.BookingConfirmed,

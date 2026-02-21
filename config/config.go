@@ -23,8 +23,13 @@ type Config struct {
 	CashfreeSecret      string
 	CashfreePANURL      string
 	CashfreePANGSTINURL string
-	GroqAPIKey          string
-	FirebaseKeyPath     string
+	// Payment gateway credentials
+	CashfreePaymentAppID  string
+	CashfreePaymentSecret string
+	RazorpayKeyID         string
+	RazorpayKeySecret     string
+	GroqAPIKey            string
+	FirebaseKeyPath       string
 }
 
 // CurrentEnv is set at startup and read by other packages to check the running environment.
@@ -42,23 +47,27 @@ func LoadConfig() *Config {
 	}
 
 	cfg := &Config{
-		Port:                getEnv("PORT", ":9000"),
-		Env:                 getEnv("ENV", "development"),
-		FirebaseCredentials: getEnv("FIREBASE_CREDENTIALS", ""),
-		DiningEmail:         getEnv("DINING_EMAIL", "dining@ticpin.in"),
-		DiningAppPass:       getEnv("DINING_APP_PASSWORD", ""),
-		EventsEmail:         getEnv("EVENTS_EMAIL", "events@ticpin.in"),
-		EventsAppPass:       getEnv("EVENTS_APP_PASSWORD", ""),
-		PlayEmail:           getEnv("PLAY_EMAIL", "play@ticpin.in"),
-		PlayAppPass:         getEnv("PLAY_APP_PASSWORD", ""),
-		AdminEmail:          getEnv("ADMIN_EMAIL", "admin@ticpin.in"),
-		AdminAppPass:        getEnv("ADMIN_APP_PASSWORD", ""),
-		CashfreeClientID:    getEnv("CASHFREE_CLIENT_ID", ""),
-		CashfreeSecret:      getEnv("CASHFREE_CLIENT_SECRET", ""),
-		CashfreePANURL:      getEnv("CASHFREE_PAN_VERIFY_URL", "https://api.cashfree.com/verification/pan-lite"),
-		CashfreePANGSTINURL: getEnv("CASHFREE_PAN_GSTIN_URL", "https://api.cashfree.com/verification/pan-gstin"),
-		GroqAPIKey:          getEnv("GROQ_API_KEY", ""),
-		FirebaseKeyPath:     getEnv("FIREBASE_KEY_PATH", "ticpin-fa6d2-firebase-adminsdk-fbsvc-53d16fed36.json"),
+		Port:                  getEnv("PORT", ":9000"),
+		Env:                   getEnv("ENV", "development"),
+		FirebaseCredentials:   getEnv("FIREBASE_CREDENTIALS", ""),
+		DiningEmail:           getEnv("DINING_EMAIL", "dining@ticpin.in"),
+		DiningAppPass:         getEnv("DINING_APP_PASSWORD", ""),
+		EventsEmail:           getEnv("EVENTS_EMAIL", "events@ticpin.in"),
+		EventsAppPass:         getEnv("EVENTS_APP_PASSWORD", ""),
+		PlayEmail:             getEnv("PLAY_EMAIL", "play@ticpin.in"),
+		PlayAppPass:           getEnv("PLAY_APP_PASSWORD", ""),
+		AdminEmail:            getEnv("ADMIN_EMAIL", "admin@ticpin.in"),
+		AdminAppPass:          getEnv("ADMIN_APP_PASSWORD", ""),
+		CashfreeClientID:      getEnv("CASHFREE_CLIENT_ID", ""),
+		CashfreeSecret:        getEnv("CASHFREE_CLIENT_SECRET", ""),
+		CashfreePANURL:        getEnv("CASHFREE_PAN_VERIFY_URL", "https://api.cashfree.com/verification/pan-lite"),
+		CashfreePANGSTINURL:   getEnv("CASHFREE_PAN_GSTIN_URL", "https://api.cashfree.com/verification/pan-gstin"),
+		CashfreePaymentAppID:  getEnv("CASHFREE_PAYMENT_APP_ID", ""),
+		CashfreePaymentSecret: getEnv("CASHFREE_PAYMENT_SECRET", ""),
+		RazorpayKeyID:         getEnv("RAZORPAY_KEY_ID", ""),
+		RazorpayKeySecret:     getEnv("RAZORPAY_KEY_SECRET", ""),
+		GroqAPIKey:            getEnv("GROQ_API_KEY", ""),
+		FirebaseKeyPath:       getEnv("FIREBASE_KEY_PATH", "ticpin-fa6d2-firebase-adminsdk-fbsvc-53d16fed36.json"),
 	}
 
 	CurrentEnv = cfg.Env

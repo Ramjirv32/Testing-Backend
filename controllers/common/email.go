@@ -115,3 +115,33 @@ func SendBookingConfirmationEmail(c fiber.Ctx) error {
 
 	return utils.SuccessResponse(c, 200, "Booking confirmation email sent", nil)
 }
+
+// ContactFormRequest is the payload for the contact us form.
+type ContactFormRequest struct {
+	FullName string `json:"fullName"`
+	Email    string `json:"email"`
+	Mobile   string `json:"mobile"`
+	Category string `json:"category"`
+	Message  string `json:"message"`
+}
+
+// SubmitContactForm handles contact form submissions and sends emails to admin.
+func SubmitContactForm(c fiber.Ctx) error {
+	var req ContactFormRequest
+	if err := c.Bind().Body(&req); err != nil {
+		return utils.ErrorResponse(c, 400, "Invalid request body")
+	}
+
+	html := utils.GetContactEmailTemplate(req.FullName, req.Email, req.Mobile, req.Category, req.Message)
+
+	// Send to admin email and account email (if available)
+	// These are typically defined in env vars handled via utils.EmailAdmin
+	adminEmail := "admin@ticpin.in"
+	accountEmail := "accounts@ticpin.in"
+
+	// Queue emails for admin and accounts
+	utils.SendEmail(utils.EmailAdmin, adminEmail, "New Contact Inquiry - "+req.Category, html)
+	utils.SendEmail(utils.EmailAdmin, accountEmail, "New Contact Inquiry - "+req.Category, html)
+
+	return utils.SuccessResponse(c, 200, "Your message has been sent successfully. Our team will get back to you soon.", nil)
+}

@@ -81,14 +81,22 @@ func (r *PlayBookingRepository) Delete(ctx context.Context, id string) error {
 	return err
 }
 
-func (r *PlayBookingRepository) CheckPlayAvailability(ctx context.Context, venueID, date, timeSlot string) (bool, error) {
+// CheckPlayAvailability returns true if the slot still has capacity.
+// totalCourts = how many simultaneous bookings are allowed (from venue.SlotSettings.TotalCourts).
+// A value of 0 or 1 means only one booking is allowed per slot.
+func (r *PlayBookingRepository) CheckPlayAvailability(ctx context.Context, venueID, date, timeSlot string, totalCourts int) (bool, error) {
 	iter := r.c().Where("venue_id", "==", venueID).Where("date", "==", date).Where("time_slot", "==", timeSlot).Where("status", "==", models.BookingConfirmed).Documents(ctx)
 	snaps, err := iter.GetAll()
 	if err != nil {
 		return false, err
 	}
-	// For now, assume 1 court per slot. If anyone booked, it's unavailable.
-	return len(snaps) == 0, nil
+	// Default to 1 court when not set
+	capacity := totalCourts
+	if capacity <= 0 {
+		capacity = 1
+	}
+	// Available if the number of existing confirmed bookings is less than total courts
+	return len(snaps) < capacity, nil
 }
 
 func (r *PlayBookingRepository) DeleteAll(ctx context.Context) error {

@@ -2,6 +2,7 @@ package admin
 
 import (
 	"backend/controllers/booking"
+	"backend/controllers/common"
 	"backend/controllers/dining"
 	"backend/controllers/event"
 	"backend/controllers/partner"
@@ -13,6 +14,9 @@ import (
 
 func RegisterAdminRoutes(router fiber.Router) {
 	adminGroup := router.Group("/admin", middleware.Auth, middleware.AdminOnly)
+
+	// Secure document signed-URL endpoint (admin-only)
+	adminGroup.Get("/signed-url", common.GetSignedURL)
 
 	adminGroup.Delete("/play-bookings/all", booking.DeleteAllPlayBookings)
 	adminGroup.Delete("/dining-bookings/all", booking.DeleteAllDiningBookings)

@@ -237,7 +237,7 @@ func GetAllStates(c fiber.Ctx) error {
 // GetDistrictsByState returns all districts for a given state.
 // The state name lookup is case-insensitive.
 func GetDistrictsByState(c fiber.Ctx) error {
-	stateName := c.Params("state")
+	stateName := strings.TrimSpace(c.Params("state"))
 	if stateName == "" {
 		return utils.ErrorResponse(c, 400, "State name is required")
 	}

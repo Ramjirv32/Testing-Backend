@@ -572,3 +572,36 @@ Questions? <a href="mailto:support@ticpin.com" style="color:#5331EA;text-decorat
 </html>
 	`, getEmailLogoSVG(), name, passID, amount, purchaseDate, expiryDate, expiryDate)
 }
+func GetContactEmailTemplate(name, email, phone, category, issue string) string {
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>New Contact Inquiry - TicPin</title>
+<link href="https://fonts.googleapis.com/css2?family=Anek+Latin:wght@500;600&display=swap" rel="stylesheet">
+</head>
+<body style="margin:0;padding:40px 20px;background:#f0f0f0;font-family:'Anek Latin', sans-serif;">
+<table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#0A0132;border-radius:15px;padding:30px 40px;">
+<tr><td>
+<table width="100%%" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:15px;overflow:hidden;">
+<tr><td style="background:#5331EA;padding:25px;"><img src="https://firebasestorage.googleapis.com/v0/b/ticpin-fa6d2.firebasestorage.app/o/logo.png?alt=media&token=96a72021-6f7d-45c6-b270-77e73b80cf09" width="140" height="35"></td></tr>
+<tr><td style="padding:30px;">
+<div style="font-weight:600;font-size:24px;color:#000;margin-bottom:20px;">New Contact Inquiry</div>
+<table width="100%%" cellpadding="5" cellspacing="0" style="font-size:16px;color:#333;">
+<tr><td width="150"><strong>Category:</strong></td><td>%s</td></tr>
+<tr><td><strong>Name:</strong></td><td>%s</td></tr>
+<tr><td><strong>Email:</strong></td><td>%s</td></tr>
+<tr><td><strong>Phone:</strong></td><td>%s</td></tr>
+<tr><td colspan="2" style="padding-top:20px;"><strong>Issue Details:</strong></td></tr>
+<tr><td colspan="2" style="background:#f9f9f9;padding:15px;border-radius:8px;border:1px solid #eee;">%s</td></tr>
+</table>
+<div style="margin-top:30px;font-size:14px;color:#666;">
+Received on %s
+</div>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`, category, name, email, phone, issue, time.Now().Format("02 Jan 2006, 03:04 PM"))
+}

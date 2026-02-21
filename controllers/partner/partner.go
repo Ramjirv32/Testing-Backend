@@ -468,7 +468,7 @@ func VerifyPAN(c fiber.Ctx) error {
 			IPAddress: c.IP(),
 		})
 		// Give a clear, actionable message to the user
-		return utils.ErrorResponse(c, 400, "PAN verification failed. Please check that your PAN number is correct and that your Name and Date of Birth exactly match your PAN card.")
+		return utils.ErrorResponse(c, 400, "PAN verification failed. Please check that your PAN number is correct and that your Name and Date of  exactly match your PAN card.")
 	}
 
 	// pan_status "E" = Existing (valid/active), "I" = Invalid
@@ -511,7 +511,7 @@ func VerifyPAN(c fiber.Ctx) error {
 			Details:   fmt.Sprintf("PAN %s dob mismatch: provided=%s", panUpper, pr.DOB),
 			IPAddress: c.IP(),
 		})
-		return utils.ErrorResponse(c, 400, "Date of birth mismatch. The date of birth you entered does not match PAN records. Please enter your DOB exactly as registered on your PAN card.")
+		return utils.ErrorResponse(c, 400, "Date of Incoporation mismatch. The Date of Incoporation you entered does not match PAN records. Please enter your DOB exactly as registered on your PAN card.")
 	}
 
 	panVerification := models.PANVerification{

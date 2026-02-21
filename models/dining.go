@@ -26,6 +26,7 @@ type DiningOffer struct {
 	Title       string `json:"title" firestore:"title"`
 	Code        string `json:"code" firestore:"code"`
 	Description string `json:"description" firestore:"description"`
+	OfferImage  string `json:"offer_image" firestore:"offer_image"`
 }
 
 type SeatingType struct {

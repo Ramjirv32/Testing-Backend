@@ -13,6 +13,7 @@ import (
 	"backend/routes/offer"
 	"backend/routes/partner"
 	"backend/routes/pass"
+	paymentroutes "backend/routes/payment"
 	"backend/routes/play"
 	"backend/routes/user"
 )
@@ -32,4 +33,5 @@ func SetupRoutes(app *fiber.App) {
 	user.RegisterUserRoutes(api)
 	offer.RegisterOfferRoutes(api)
 	ai.RegisterAIRoutes(api)
+	paymentroutes.RegisterPaymentRoutes(api)
 }

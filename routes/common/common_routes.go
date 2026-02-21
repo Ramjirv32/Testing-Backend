@@ -8,6 +8,7 @@ import (
 )
 
 func RegisterCommonRoutes(router fiber.Router) {
+	router.Post("/contact", common.SubmitContactForm)
 	router.Post("/upload", middleware.Auth, common.UploadFile)
 
 	// Email endpoints
